@@ -234,10 +234,13 @@ function GameInner() {
           levelId: levelId 
         }),
       });
-
-      if (!response.ok) throw new Error("API Error");
-
-      const data = await response.json();
+      let data: any = null;
+      if (response.ok) {
+        data = await response.json();
+      } else {
+        const offlineMsg = "通信受限。切换离线应答模块：目标保持沉默，系统记录压力与语义漂移。";
+        data = { content: `${offlineMsg}\n\n:::STATUS\n{\"stress\": ${Math.min(100, stress + 5)}, \"thought\": \"链路阻断，转入离线推演。\", \"confession\": false}\n:::` };
+      }
       const rawContent = data.content;
       
       // Parse hidden status block
@@ -471,10 +474,10 @@ function GameInner() {
                     <div className="text-xs text-cyber-primary/50">v2.4.0-alpha // 安全协议已启动</div>
                  </div>
               ) : (
-                <motion.div 
+        <motion.div 
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="max-w-3xl w-full border border-cyber-primary/30 bg-cyber-black/90 p-10 text-center relative overflow-hidden shadow-[0_0_100px_rgba(0,255,157,0.1)] rounded-sm"
+                    className="max-w-3xl w-full border border-cyber-primary/30 bg-cyber-black/90 p-10 text-center relative overflow-hidden shadow-[0_0_100px_rgba(56,189,248,0.12)] rounded-sm"
                 >
                     {/* Decorative Corners */}
                     <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyber-primary"></div>
@@ -529,7 +532,7 @@ function GameInner() {
                   initial={{ scale: 0.95, y: 10 }}
                   animate={{ scale: 1, y: 0 }}
                   exit={{ scale: 0.95, y: 10 }}
-                  className="bg-cyber-black border border-cyber-primary/50 rounded-xl max-w-lg w-full shadow-[0_0_50px_rgba(0,255,157,0.2)] flex flex-col max-h-[80vh] overflow-hidden"
+                  className="bg-cyber-black border border-cyber-primary/50 rounded-xl max-w-lg w-full shadow-[0_0_50px_rgba(56,189,248,0.2)] flex flex-col max-h-[80vh] overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Modal Header */}
@@ -562,7 +565,7 @@ function GameInner() {
                      <button 
                        onClick={() => handlePresentEvidence(selectedEvidence.id)}
                        disabled={isLoading || gameStatus !== 'playing'}
-                       className="px-6 py-2 bg-cyber-primary text-black font-bold text-sm rounded hover:bg-cyber-primary/80 transition-colors shadow-[0_0_15px_rgba(0,255,157,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
+                       className="px-6 py-2 bg-cyber-primary text-black font-bold text-sm rounded hover:bg-cyber-primary/80 transition-colors shadow-[0_0_15px_rgba(56,189,248,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
                      >
                        ⚡ 出示证据
                      </button>
@@ -583,7 +586,7 @@ function GameInner() {
                   initial={{ scale: 0.9, y: 20 }}
                   animate={{ scale: 1, y: 0 }}
                   exit={{ scale: 0.9, y: 20 }}
-                  className="bg-cyber-black border border-cyber-primary/50 p-6 rounded-xl max-w-2xl w-full shadow-[0_0_50px_rgba(0,255,157,0.15)]"
+                  className="bg-cyber-black border border-cyber-primary/50 p-6 rounded-xl max-w-2xl w-full shadow-[0_0_50px_rgba(56,189,248,0.15)]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between mb-6 border-b border-cyber-gray pb-4">
@@ -626,7 +629,7 @@ function GameInner() {
                             所有行动都会消耗能量。
                             <br/>• 提问: -5 | 技能: -20 ~ -40
                             <br/>能量不足时可选策略：
-                            <br/>• <span className="text-green-400">休息</span>: +20 能量 / -5 压力
+                            <br/>• <span className="text-cyber-primary">休息</span>: +20 能量 / -5 压力
                             <br/>• <span className="text-blue-400">安抚</span>: +50 能量 / -15 压力 (高风险高回报)
                         </p>
                       </div>
@@ -654,7 +657,7 @@ function GameInner() {
           <div className="flex items-center gap-4">
             <div className={cn(
               "w-12 h-12 rounded-full flex items-center justify-center border-2 overflow-hidden transition-all duration-500 relative",
-              stress > 80 ? "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]" : "bg-cyber-gray border-cyber-primary shadow-[0_0_10px_rgba(0,255,157,0.2)]"
+              stress > 80 ? "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]" : "bg-cyber-gray border-cyber-primary shadow-[0_0_10px_rgba(56,189,248,0.2)]"
             )}>
               <Cpu className={cn(
                 "w-7 h-7",
@@ -764,7 +767,7 @@ function GameInner() {
                     <div className={cn(
                         "p-4 rounded-lg text-sm border whitespace-pre-wrap shadow-lg relative",
                         m.role === 'user' 
-                        ? "bg-cyber-primary/5 border-cyber-primary/30 text-cyber-primary rounded-tr-none shadow-[0_0_15px_rgba(0,255,157,0.05)]" 
+                        ? "bg-cyber-primary/5 border-cyber-primary/30 text-cyber-primary rounded-tr-none shadow-[0_0_15px_rgba(56,189,248,0.08)]" 
                         : "bg-cyber-dark border-cyber-gray text-gray-300 rounded-tl-none shadow-[0_0_15px_rgba(0,0,0,0.5)]"
                     )}>
                         {m.role === 'assistant' && (
@@ -888,35 +891,35 @@ function GameInner() {
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="p-8 border-2 border-green-500 bg-green-900/30 rounded-xl text-center m-4 backdrop-blur-md shadow-[0_0_50px_rgba(0,255,0,0.1)] max-w-2xl mx-auto"
+              className="p-8 border-2 border-cyber-primary bg-cyber-primary/10 rounded-xl text-center m-4 backdrop-blur-md shadow-[0_0_50px_rgba(56,189,248,0.15)] max-w-2xl mx-auto"
             >
-              <h2 className="text-3xl font-bold text-green-400 mb-2">🎉 案件侦破</h2>
+              <h2 className="text-3xl font-bold text-cyber-primary mb-2">🎉 案件侦破</h2>
               <p className="text-xl text-white mb-6">嫌疑人防线已崩溃</p>
               
-              <div className="text-sm font-mono text-green-300/80 border-y border-green-500/30 py-4 mb-6">
+              <div className="text-sm font-mono text-cyber-primary/80 border-y border-cyber-primary/30 py-4 mb-6">
                 <div className="flex justify-center gap-8 mb-4">
                    <div>
-                      <div className="text-xs text-green-500 uppercase">Total Turns</div>
+                      <div className="text-xs text-cyber-primary uppercase">Total Turns</div>
                       <div className="text-2xl font-bold text-white">{turnCount}</div>
                    </div>
                    <div>
-                      <div className="text-xs text-green-500 uppercase">Stress Level</div>
+                      <div className="text-xs text-cyber-primary uppercase">Stress Level</div>
                       <div className="text-2xl font-bold text-white">{stress}%</div>
                    </div>
                    <div>
-                      <div className="text-xs text-green-500 uppercase">Evidence Found</div>
+                      <div className="text-xs text-cyber-primary uppercase">Evidence Found</div>
                       <div className="text-2xl font-bold text-white">{evidenceFound.length}/{EVIDENCE_DB.length}</div>
                    </div>
                 </div>
               </div>
 
               {/* Narrative Summary Section */}
-              <div className="text-left bg-black/40 p-6 rounded-lg border border-green-500/20 mb-6 max-h-60 overflow-y-auto">
-                 <h3 className="text-green-400 font-bold mb-3 flex items-center gap-2">
+              <div className="text-left bg-black/40 p-6 rounded-lg border border-cyber-primary/20 mb-6 max-h-60 overflow-y-auto">
+                 <h3 className="text-cyber-primary font-bold mb-3 flex items-center gap-2">
                     <Database size={16} /> 案件结案报告
                  </h3>
                  {isGeneratingSummary ? (
-                    <div className="flex items-center gap-2 text-green-500/50 animate-pulse">
+                    <div className="flex items-center gap-2 text-cyber-primary/60 animate-pulse">
                        <Cpu size={16} className="animate-spin" />
                        正在从中央数据库生成档案...
                     </div>
@@ -930,13 +933,13 @@ function GameInner() {
               <div className="flex justify-center gap-4">
                   <button 
                     onClick={() => window.location.href = '/'} 
-                    className="px-6 py-3 border border-green-500 text-green-500 hover:bg-green-500/10 rounded font-bold transition-all"
+                    className="px-6 py-3 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded font-bold transition-all"
                   >
                     返回大厅
                   </button>
                   <button 
                     onClick={() => window.location.reload()} 
-                    className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded font-bold transition-all hover:scale-105 shadow-lg shadow-green-500/20"
+                    className="px-6 py-3 bg-cyber-primary hover:bg-cyber-primary/80 text-black rounded font-bold transition-all hover:scale-105 shadow-lg shadow-cyber-primary/30"
                   >
                     重玩本关
                   </button>

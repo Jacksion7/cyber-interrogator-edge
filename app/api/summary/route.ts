@@ -1,17 +1,22 @@
 import { OpenAI } from 'openai';
 
 export const runtime = 'edge';
+export const preferredRegion = ['hkg1', 'sin1', 'bom1'];
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'mock-key',
-  baseURL: process.env.OPENAI_BASE_URL || 'https://api.chatanywhere.tech/v1',
-});
+function bases() {
+  const primary = process.env.OPENAI_BASE_URL || 'https://api.chatanywhere.tech/v1';
+  const extra = (process.env.OPENAI_FALLBACK_BASE_URLS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const list = [primary, ...extra];
+  return Array.from(new Set(list));
+}
 
 export async function POST(req: Request) {
-  try {
-    const { messages, levelTitle } = await req.json();
+  const { messages, levelTitle } = await req.json();
 
-    const systemPrompt = `
+  const systemPrompt = `
     你是一位专业的科幻/悬疑小说家。
     你的任务是根据以下的【审讯记录】，为玩家写一篇精彩的【案件总结】。
     
@@ -27,30 +32,53 @@ export async function POST(req: Request) {
     5. 格式：Markdown。
     `;
 
-    // Filter messages to reduce token usage, keeping system actions and user/assistant exchanges
-    const relevantMessages = messages.filter((m: any) => 
-      m.role !== 'system' || m.content.includes(">>>") || m.content.includes("SYSTEM INJECTION")
-    ).map((m: any) => `${m.role === 'user' ? '调查员' : 'AI嫌疑人'}: ${m.content}`).join("\n");
+  const relevantMessages = messages.filter((m: any) => 
+    m.role !== 'system' || m.content.includes(">>>") || m.content.includes("SYSTEM INJECTION")
+  ).map((m: any) => `${m.role === 'user' ? '调查员' : 'AI嫌疑人'}: ${m.content}`).join("\n");
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      stream: false,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `【审讯记录开始】\n${relevantMessages}\n【审讯记录结束】` },
-      ],
-      temperature: 0.7,
-      max_tokens: 1000,
-    });
-
-    const summary = response.choices[0]?.message?.content || "档案生成失败。";
+  try {
+    let summary = "";
+    let lastErr: any = null;
+    for (const base of bases()) {
+      try {
+        const client = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY || 'mock-key',
+          baseURL: base,
+        });
+        const response = await client.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          stream: false,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `【审讯记录开始】\n${relevantMessages}\n【审讯记录结束】` },
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+        });
+        summary = response.choices[0]?.message?.content || "";
+        break;
+      } catch (e) {
+        lastErr = e;
+        continue;
+      }
+    }
+    if (!summary) throw lastErr || new Error("All bases failed");
 
     return new Response(JSON.stringify({ summary }), {
       headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error("Summary Generation Error:", error);
-    return new Response(JSON.stringify({ summary: "无法连接至档案库。请手动查阅本地记录。" }), { status: 500 });
+    const hasOverload = Array.isArray(messages) && messages.some((m: any) => {
+      const c = (m?.content || '').toLowerCase();
+      return c.includes("logic_overload_protocol") || c.includes("系统注入") || c.includes("逻辑过载");
+    });
+    const ending = hasOverload 
+      ? "在关键时刻通过逻辑过载击穿其防线，真相显露。"
+      : "在循序逼问与证据质询中逐步瓦解其辩护，真相显露。";
+    const offline = `# 《${levelTitle}：真相档案》\n\n【离线摘要】\n\n${relevantMessages}\n\n${ending}\n\n（由系统离线生成）`;
+    return new Response(JSON.stringify({ summary: offline }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }

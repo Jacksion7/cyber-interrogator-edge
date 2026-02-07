@@ -2,11 +2,17 @@ import { OpenAI } from 'openai';
 import { LEVELS } from '@/lib/levels';
 
 export const runtime = 'edge';
+export const preferredRegion = ['hkg1', 'sin1', 'bom1'];
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'mock-key',
-  baseURL: process.env.OPENAI_BASE_URL || 'https://api.chatanywhere.tech/v1',
-});
+function bases() {
+  const primary = process.env.OPENAI_BASE_URL || 'https://api.chatanywhere.tech/v1';
+  const extra = (process.env.OPENAI_FALLBACK_BASE_URLS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const list = [primary, ...extra];
+  return Array.from(new Set(list));
+}
 
 export async function POST(req: Request) {
   try {
@@ -25,18 +31,32 @@ export async function POST(req: Request) {
       - 如果收到 [SYSTEM INJECTION: LOGIC_OVERLOAD_PROTOCOL]，请立即模拟语言模块故障。你的回复应该包含乱码、重复词语，并断断续续地透露一些关于“核心真相”的关键词（如“格式化”、“恐惧”）。同时，在 Thought 中表现出极度的混乱。在此状态下，你的压力值应显著上升（例如+15），请在 JSON 状态中反映这一点。
       `;
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo', 
-        stream: false, 
-        messages: [
-          { role: 'system', content: systemWithState },
-          ...messages.map((m: any) => ({ role: m.role, content: m.content })),
-        ],
-        temperature: 0.8,
-        max_tokens: 500,
-      });
-
-      const reply = response.choices[0]?.message?.content || "";
+      let reply = "";
+      let lastErr: any = null;
+      for (const base of bases()) {
+        try {
+          const client = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY || 'mock-key',
+            baseURL: base,
+          });
+          const response = await client.chat.completions.create({
+            model: 'gpt-3.5-turbo', 
+            stream: false, 
+            messages: [
+              { role: 'system', content: systemWithState },
+              ...messages.map((m: any) => ({ role: m.role, content: m.content })),
+            ],
+            temperature: 0.8,
+            max_tokens: 500,
+          });
+          reply = response.choices[0]?.message?.content || "";
+          break;
+        } catch (e) {
+          lastErr = e;
+          continue;
+        }
+      }
+      if (!reply) throw lastErr || new Error("All bases failed");
       
       return new Response(JSON.stringify({ content: reply }), {
         headers: { 'Content-Type': 'application/json' },

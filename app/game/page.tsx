@@ -865,21 +865,56 @@ function GameInner() {
           {/* Background Grid - Fixed Position relative to container */}
           <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none -z-10 h-full w-full fixed"></div>
 
-          {/* Welcome Hint (Inline - Disappears after interaction) */}
           {messages.length < 2 && !showHelp && (
-             <motion.div 
-               initial={{ opacity: 0, y: -20 }}
-               animate={{ opacity: 1, y: 0 }}
-               className="mx-auto max-w-md bg-cyber-dark/80 border border-cyber-primary/30 rounded-none p-4 text-sm text-cyber-primary/80 font-mono mb-8 backdrop-blur-sm"
-             >
-               <div className="flex items-center gap-2 mb-2 font-bold text-white border-b border-cyber-primary/20 pb-2">
-                 <HelpCircle size={16} /> 战术指南 v2.0
-               </div>
-               <p>1. 先 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">思维截获</span>，再 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">出示证据</span>，可触发布局内心数据流，形成连携。</p>
-               <p className="mt-1">2. 档案缺失时，使用 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">数据库骇入</span> 暴力解锁关键证据。</p>
-               <p className="mt-1">3. 连击会提升心理压迫效率。避免无效操作导致连击中断。</p>
-               <p className="mt-1">4. 休整与安抚可恢复能量，但会重置连击。</p>
-             </motion.div>
+            <motion.div 
+              initial={{ opacity: 0, y: -16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 180, damping: 16 }}
+              className="mx-auto max-w-2xl mb-8"
+            >
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-cyber-primary/20 via-cyber-accent/10 to-transparent blur-xl" />
+                <div className="relative bg-cyber-black/70 border border-cyber-primary/40 shadow-[0_0_30px_rgba(0,255,157,0.08)]">
+                  <div className="px-5 py-4 flex items-center justify-between border-b border-cyber-primary/20">
+                    <div className="flex items-center gap-2 text-white font-bold">
+                      <HelpCircle size={16} /> TACTICAL_GUIDE // 战术指南
+                    </div>
+                    <button className="text-xs font-mono text-cyber-primary/80 hover:text-white transition-colors" onClick={() => setShowHelp(true)}>
+                      打开完整指南 →
+                    </button>
+                  </div>
+                  <div className="p-5 grid grid-cols-3 gap-4 text-sm font-mono">
+                    <div className="bg-cyber-dark/60 border border-cyber-gray/50 p-3">
+                      <div className="flex items-center gap-2 text-cyber-accent font-bold mb-2">
+                        <Eye size={14} /> 神经分析
+                      </div>
+                      <div className="text-gray-400 space-y-1">
+                        <div>• 先思维截获，再出示证据</div>
+                        <div>• 抓住迟疑与矛盾点</div>
+                      </div>
+                    </div>
+                    <div className="bg-cyber-dark/60 border border-cyber-gray/50 p-3">
+                      <div className="flex items-center gap-2 text-cyber-primary font-bold mb-2">
+                        <Database size={14} /> 取证骇入
+                      </div>
+                      <div className="text-gray-400 space-y-1">
+                        <div>• 证据不足时暴力解锁</div>
+                        <div>• 关键证据优先检阅</div>
+                      </div>
+                    </div>
+                    <div className="bg-cyber-dark/60 border border-cyber-gray/50 p-3">
+                      <div className="flex items-center gap-2 text-white font-bold mb-2">
+                        <Zap size={14} /> 能量管理
+                      </div>
+                      <div className="text-gray-400 space-y-1">
+                        <div>• 提问 -5E；技能 -20/-30/-40E</div>
+                        <div>• 休整/安抚恢复能量</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           )}
           
           {messages.map((m) => (
@@ -931,6 +966,32 @@ function GameInner() {
                         )}
                         {m.content}
                     </div>
+                    
+                    {m.role === 'assistant' && (
+                      <div className="flex items-center gap-2 pl-2">
+                        <button 
+                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-primary hover:text-cyber-primary transition-colors rounded-none"
+                          onClick={() => navigator.clipboard.writeText(m.content)}
+                        >
+                          复制
+                        </button>
+                        <button 
+                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-accent hover:text-cyber-accent transition-colors rounded-none"
+                          onClick={() => addNodeEntry({ id: `NODE:${m.id}`, type: 'NODE', label: '对话片段' })}
+                        >
+                          加入节点图谱
+                        </button>
+                        <button 
+                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-secondary hover:text-cyber-secondary transition-colors rounded-none"
+                          onClick={() => {
+                            const snippet = m.content.slice(0, 20).replace(/\n/g, ' ');
+                            addNodeEntry({ id: `EVIDENCE_SNIPPET:${m.id}`, type: 'EVIDENCE', label: `片段：${snippet}...` });
+                          }}
+                        >
+                          标记为证据
+                        </button>
+                      </div>
+                    )}
                     
                     {/* Thought Bubble (Deep Scan) */}
                     {m.thought && (
@@ -1104,13 +1165,18 @@ function GameInner() {
               placeholder={gameStatus === 'won' ? "案件已结束 // 归档中" : "输入质问内容... (消耗 5 能量)"}
               disabled={gameStatus !== 'playing' || isLoading}
             />
-            <button 
-              type="submit"
-              disabled={isLoading || gameStatus !== 'playing' || !input.trim() || energy < 5}
-              className="bg-cyber-primary text-cyber-black border border-cyber-primary px-6 rounded-none hover:bg-cyber-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 ease-out font-bold uppercase tracking-wider hover:shadow-[0_0_16px_rgba(0,255,157,0.35)] active:translate-y-[1px] active:scale-[0.98]"
-            >
-              <Send size={18} />
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary/40 text-cyber-primary bg-cyber-primary/10 rounded-none">
+                -5E
+              </div>
+              <button 
+                type="submit"
+                disabled={isLoading || gameStatus !== 'playing' || !input.trim() || energy < 5}
+                className="bg-cyber-primary text-cyber-black border border-cyber-primary px-6 rounded-none hover:bg-cyber-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 ease-out font-bold uppercase tracking-wider hover:shadow-[0_0_16px_rgba(0,255,157,0.35)] active:translate-y-[1px] active:scale-[0.98]"
+              >
+                <Send size={18} />
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -1207,216 +1273,6 @@ function GameInner() {
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
-        <section className="mt-2">
-          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
-            <FileText size={14} /> 档案快照
-          </h3>
-          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
-            {snapshots.length === 0 && <div className="text-[10px] text-gray-500">暂无快照</div>}
-            <div className="space-y-2">
-              {snapshots.map((s, i) => (
-                <div key={`${s.ts}-${i}`} className={cn("flex items-center justify-between px-2 py-1 border bg-cyber-black", selectedSnapshotIndex === i ? "border-cyber-primary" : "border-cyber-gray")}>
-                  <div className="text-[10px] font-mono text-gray-300">
-                    <div className="text-cyber-primary">{s.title}</div>
-                    <div className="text-gray-500">{new Date(s.ts).toLocaleString()} · {s.result.toUpperCase()} · 回合 {s.turns}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      type="button"
-                      className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded-none"
-                      onClick={() => loadSnapshotToView(i)}
-                    >
-                      载入到视图
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-        <section className="mt-2">
-          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
-            <Activity size={14} /> 节点图谱
-          </h3>
-          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
-            <div className="flex items-center gap-2 mb-2">
-              {['ALL','EVIDENCE','SKILL','NODE','SYSTEM'].map((k) => (
-                <button 
-                  key={k}
-                  type="button"
-                  className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeFilter === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")}
-                  onClick={() => setNodeFilter(k as any)}
-                >
-                  {k}
-                </button>
-              ))}
-              <div className="ml-auto flex items-center gap-2">
-                {['LIST','TIMELINE','TREE'].map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeViewMode === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")}
-                    onClick={() => setNodeViewMode(k as any)}
-                  >
-                    {k}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {nodeViewMode === 'LIST' && (
-              <div className="space-y-2">
-                {(nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter)).length === 0 && (
-                  <div className="text-[10px] text-gray-500">暂无节点</div>
-                )}
-                {nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter).map((n, i) => (
-                  <div key={`${n.id}-${n.ts}-${i}`} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
-                    <div className="flex items-center gap-2 text-[10px] font-mono">
-                      <span className={cn(
-                        "px-1 border rounded-none",
-                        n.type === 'EVIDENCE' ? "border-cyber-primary text-cyber-primary" :
-                        n.type === 'SKILL' ? "border-cyber-secondary text-cyber-secondary" :
-                        n.type === 'NODE' ? "border-cyber-accent text-cyber-accent" :
-                        "border-gray-700 text-gray-400"
-                      )}>{n.type}</span>
-                      <span className="text-gray-300">{n.label}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {n.type === 'EVIDENCE' && (
-                        <button 
-                          type="button"
-                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded-none"
-                          onClick={() => {
-                            const id = n.id.replace('EVIDENCE:', '');
-                            setSelectedEvidence(EVIDENCE_DB.find(e => e.id === id) || null);
-                          }}
-                        >
-                          检阅档案
-                        </button>
-                      )}
-                      <span className="text-[10px] text-gray-500 font-mono">{new Date(n.ts).toLocaleTimeString()}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {nodeViewMode === 'TIMELINE' && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-500 font-mono">缩放</span>
-                  <input type="range" min={0.6} max={2} step={0.1} value={timelineZoom} onChange={(e) => setTimelineZoom(parseFloat(e.target.value))} />
-                </div>
-                <div className="overflow-x-auto">
-                  {(() => {
-                    const filtered = nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter);
-                    if (filtered.length === 0) return <div className="text-[10px] text-gray-500">暂无节点</div>;
-                    const minTs = Math.min(...filtered.map(n => n.ts));
-                    const maxTs = Math.max(...filtered.map(n => n.ts));
-                    const width = Math.max(600, (maxTs - minTs) / 1000 * 60) * timelineZoom; // scale width by time span
-                    const height = 160;
-                    const colorFor = (t: string) => t === 'EVIDENCE' ? '#38bdf8' : t === 'SKILL' ? '#22c55e' : t === 'NODE' ? '#0ea5e9' : '#64748b';
-                    const yFor = (t: string) => t === 'EVIDENCE' ? 40 : t === 'SKILL' ? 80 : t === 'NODE' ? 120 : 100;
-                    const xFor = (ts: number) => {
-                      const span = maxTs - minTs || 1;
-                      return 40 + ((ts - minTs) / span) * (width - 80);
-                    };
-                    return (
-                      <svg width={width} height={height} className="bg-cyber-black border border-cyber-gray">
-                        <line x1="20" y1="20" x2={width-20} y2="20" stroke="#334155" strokeWidth="1"/>
-                        <line x1="20" y1="60" x2={width-20} y2="60" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
-                        <line x1="20" y1="100" x2={width-20} y2="100" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
-                        <line x1="20" y1="140" x2={width-20} y2="140" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
-                        {filtered.map((n, i) => {
-                          const x = xFor(n.ts);
-                          const y = yFor(n.type);
-                          return (
-                            <g key={`${n.id}-${n.ts}-${i}`}>
-                              {i > 0 && (
-                                <line x1={xFor(filtered[i-1].ts)} y1={yFor(filtered[i-1].type)} x2={x} y2={y} stroke="#475569" strokeWidth="1"/>
-                              )}
-                              <circle cx={x} cy={y} r={6} fill={colorFor(n.type)} />
-                              <text x={x+8} y={y+4} fontSize="10" fill="#cbd5e1" className="font-mono">{n.label}</text>
-                            </g>
-                          );
-                        })}
-                      </svg>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-            {nodeViewMode === 'TREE' && (
-              <div className="space-y-2">
-                <div className="overflow-x-auto">
-                  {(() => {
-                    const chains = currentLevel.evidenceChain || [];
-                    if (chains.length === 0) return <div className="text-[10px] text-gray-500">暂无证据树</div>;
-                    const width = Math.max(600, chains.reduce((acc, c) => Math.max(acc, c.length), 0) * 180);
-                    const height = Math.max(140, chains.length * 80);
-                    return (
-                      <svg width={width} height={height} className="bg-cyber-black border border-cyber-gray">
-                        {chains.map((chain, row) => {
-                          return chain.map((id, idx) => {
-                            const x = 60 + idx * 180;
-                            const y = 40 + row * 80;
-                            const unlocked = evidenceFound.includes(id);
-                            const item = EVIDENCE_DB.find(e => e.id === id);
-                            const nextId = chain[idx+1];
-                            return (
-                              <g key={`${id}-${row}-${idx}`}>
-                                <rect x={x-40} y={y-18} width={120} height={36} fill={unlocked ? 'rgba(56,189,248,0.15)' : 'rgba(148,163,184,0.15)'} stroke={unlocked ? '#38bdf8' : '#64748b'} />
-                                <text x={x-34} y={y+4} fontSize="10" fill={unlocked ? '#38bdf8' : '#94a3b8'} className="font-mono">{item?.name || id}</text>
-                                {nextId && (
-                                  <g>
-                                    <line x1={x+80} y1={y} x2={x+180} y2={y} stroke="#334155" strokeWidth="1"/>
-                                    <polygon points={`${x+180},${y} ${x+172},${y-4} ${x+172},${y+4}`} fill="#334155" />
-                                  </g>
-                                )}
-                              </g>
-                            );
-                          });
-                        })}
-                      </svg>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-        <section className="mt-2">
-          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
-            <FileText size={14} /> 章节复核
-          </h3>
-          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
-            <div className="text-[10px] font-mono text-gray-400 mb-1">关键证据</div>
-            <div className="space-y-1">
-              {(currentLevel.keyEvidence || []).map(id => {
-                const item = EVIDENCE_DB.find(e => e.id === id);
-                const unlocked = evidenceFound.includes(id);
-                return (
-                  <div key={id} className="flex items-center justify-between text-[10px] px-2 py-1 border bg-cyber-black">
-                    <span className={cn(unlocked ? "text-cyber-primary" : "text-gray-500")}>{item?.name || id}</span>
-                    <span className={cn("font-mono", unlocked ? "text-cyber-primary" : "text-red-400")}>{unlocked ? "已解锁" : "未解锁"}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-2 text-[10px] font-mono text-gray-400 mb-1">证据树</div>
-            <div className="space-y-1">
-              {(currentLevel.evidenceChain || []).map(([a,b], idx) => (
-                <div key={`${a}-${b}-${idx}`} className="flex items-center gap-2 text-[10px]">
-                  <span className={cn("px-1 border rounded-none", evidenceFound.includes(a) ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-500")}>
-                    {EVIDENCE_DB.find(e => e.id === a)?.name || a}
-                  </span>
-                  <span className="text-gray-600">→</span>
-                  <span className={cn("px-1 border rounded-none", evidenceFound.includes(b) ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-500")}>
-                    {EVIDENCE_DB.find(e => e.id === b)?.name || b}
-                  </span>
-                </div>
-              ))}
             </div>
           </div>
         </section>

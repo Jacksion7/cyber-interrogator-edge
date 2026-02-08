@@ -38,5 +38,8 @@ describe('game store', () => {
     expect(s.energy).toBe(100);
     expect(s.evidenceFound).toEqual(['coffee']);
     expect(s.gameStatus).toBe('playing');
+    expect(s.decisions.length).toBe(0);
+    expect(s.suggestionHistory.length).toBe(0);
+    expect(s.nodeGraph.length).toBe(0);
   });
 });

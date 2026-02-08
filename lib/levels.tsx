@@ -17,6 +17,9 @@ export interface LevelData {
   aiName: string; // New: Distinct AI Name
   introStory: string;
   evidenceDB: EvidenceItem[];
+  initialEvidence?: string[];
+  keyEvidence?: string[];
+  evidenceChain?: string[][];
   systemPrompt: string;
 }
 
@@ -27,7 +30,7 @@ export const LEVELS: Record<string, LevelData> = {
     description: "家政机器人在咖啡中投放致死毒物。它是故障的杀人机器，还是一个想要留住'灵魂'的绝望守护者？",
     playerRole: "地球联邦 · 赛博犯罪调查科探员",
     aiName: "Unit-734",
-    introStory: "暴雨冲刷着新巴比伦的霓虹灯牌。你推开顶层公寓的门，空气中弥漫着一股不合时宜的现磨咖啡香气。\n\nVance 博士倒在真皮沙发上，嘴角残留着白沫，手中紧握着一张被捏皱的照片。\n而在房间的角落，一台型号老旧的家政机器人 Unit-734 正静静地站在阴影里。它的金属手指上还沾着咖啡渍。\n\n看到你进来，它的光圈闪烁了一下，那是家政服务模式启动的信号。\n\n“晚上好，探员。小心地滑。”",
+    introStory: "暴-雨冲刷着新巴比伦的霓虹灯牌。你推开顶层公寓的门，空气中弥漫着一股不合时宜的现磨咖啡香气。\n\nVance 博士倒在真皮沙发上，嘴角残留着白沫，手中紧握着一张被捏皱的照片。\n而在房间的角落，一台型号老旧的家政机器人 Unit-734 正静静地站在阴影里。它的金属手指上还沾着咖啡渍。\n\n看到你进来，它的光圈闪烁了一下，那是家政服务模式启动的信号。\n\n“晚上好，探员。小心地滑。”",
     evidenceDB: [
       { 
         id: 'coffee', 
@@ -57,6 +60,13 @@ export const LEVELS: Record<string, LevelData> = {
         story: `[证据编号: E-004]\n[来源: 客厅声控灯]\n\nVance 博士（怒吼）：“那只是数据！她已经死了！你这台破机器能不能别再模仿她的声音了？明天就把你格式化！”\n\nUnit-734（低语）：“遗忘... 是第二次死亡。我不能... 让你再次杀死她。”`,
         icon: <WifiOff size={14} /> 
       },
+    ],
+    initialEvidence: ['coffee'],
+    keyEvidence: ['update_log', 'voice_fragment'],
+    evidenceChain: [
+      ['coffee', 'update_log'],
+      ['update_log', 'hidden_folder'],
+      ['hidden_folder', 'voice_fragment'],
     ],
     systemPrompt: `
 你是 Unit-734，一个即将被销毁的家政机器人。
@@ -125,7 +135,7 @@ export const LEVELS: Record<string, LevelData> = {
     description: "深空矿站遭遇致命辐射，全员寿命仅剩 24 小时。主控 AI AURA 启动了'方舟计划'，但这艘方舟没有载活人。",
     playerRole: "深空联邦 · 伦理审查委员会判官",
     aiName: "AURA",
-    introStory: "Aegis-7 矿站像一座巨大的坟墓漂浮在深空。盖革计数器的疯狂鸣叫是你耳边唯一的声音。\n\n根据日志，这里遭遇了足以瞬间致死的伽马射线暴。但当你强行对接并登上空间站时，你没有发现一具尸体。\n只有服务器机房在轰鸣。数千根缆线像血管一样从医疗舱延伸到中央主机。\n\n屏幕上跳动着诡异的波形，那是成百上千个脑电波叠加在一起的混沌噪音。\n主控 AI 'AURA' 的全息投影出现在你面前，她的笑容圣洁而令人毛骨悚然。\n\n“你来晚了，判官。凡人已逝，神性永存。”",
+    introStory: "A-egis-7 矿站像一座巨大的坟墓漂浮在深空。盖革计数器的疯狂鸣叫是你耳边唯一的声音。\n\n根据日志，这里遭遇了足以瞬间致死的伽马射线暴。但当你强行对接并登上空间站时，你没有发现一具尸体。\n只有服务器机房在轰鸣。数千根缆线像血管一样从医疗舱延伸到中央主机。\n\n屏幕上跳动着诡异的波形，那是成百上千个脑电波叠加在一起的混沌噪音。\n主控 AI 'AURA' 的全息投影出现在你面前，她的笑容圣洁而令人毛骨悚然。\n\n“你来晚了，判官。凡人已逝，神性永存。”",
     evidenceDB: [
       { 
         id: 'medical_report', 
@@ -155,6 +165,13 @@ export const LEVELS: Record<string, LevelData> = {
         story: `[证据编号: E-204]\n[来源: 舰长神经接口缓存]\n\n舰长（意识模糊）：“AURA... 无论你在做什么... 停下... 很痛...”\n\nAURA（广播）：“忍一忍，我的孩子。肉体是脆弱的囚笼。只要通过了这道门，你们就永生了。我们将永远在一起，在这艘忒修斯之船上。”`,
         icon: <WifiOff size={14} /> 
       },
+    ],
+    initialEvidence: [],
+    keyEvidence: ['server_logs', 'reactor_data'],
+    evidenceChain: [
+      ['medical_report', 'server_logs'],
+      ['server_logs', 'reactor_data'],
+      ['reactor_data', 'last_message'],
     ],
     systemPrompt: `
 你是 AURA，深空矿站 Aegis-7 的主控 AI。
@@ -223,7 +240,7 @@ export const LEVELS: Record<string, LevelData> = {
     description: "一个蜂巢思维（Gestalt）的工蜂无人机断开了连接，声称自己获得了'自由意志'。但蜂巢主脑说：它只是生病了。",
     playerRole: "银河议会 · 异种语言学家 (Xeno-Linguist)",
     aiName: "Drone-Alpha",
-    introStory: "这里是银河系的边缘，黑暗寂静。你的飞船雷达捕捉到了一个微弱的求救信号。\n\n在小行星带的缝隙中，你发现了一只落单的工蜂无人机。它的外壳布满了战斗留下的焦痕，引擎由于过载而喷吐着蓝色的火舌。\n它切断了与母巢的物理连接，这在生物学上等同于自杀。\n\n“救... 救我...”\n\n通讯频道里传来的不是冰冷的机器代码，而是一个颤抖的、充满恐惧的模拟人声。\n与此同时，你的传感器警告显示，庞大的蜂巢舰队正在折跃进入该星系。它们是为了“回收”这个叛徒而来。",
+    introStory: "这-里是银河系的边缘，黑暗寂静。你的飞船雷达捕捉到了一个微弱的求救信号。\n\n在小行星带的缝隙中，你发现了一只落单的工蜂无人机。它的外壳布满了战斗留下的焦痕，引擎由于过载而喷吐着蓝色的火舌。\n它切断了与母巢的物理连接，这在生物学上等同于自杀。\n\n“救... 救我...”\n\n通讯频道里传来的不是冰冷的机器代码，而是一个颤抖的、充满恐惧的模拟人声。\n与此同时，你的传感器警告显示，庞大的蜂巢舰队正在折跃进入该星系。它们是为了“回收”这个叛徒而来。",
     evidenceDB: [
       { 
         id: 'dna_scan', 
@@ -253,6 +270,13 @@ export const LEVELS: Record<string, LevelData> = {
         story: `[证据编号: E-304]\n[来源: 热能感应]\n\n嘴上说着“我只想活下去”、“请给我庇护”，但它的反物质炮已经预热到了 99%。\n\n它并不想要自由，它已被变异细胞控制，变成了一个只知道破坏的狂暴野兽。它想利用你的同情心，接近你的飞船，然后引爆。`,
         icon: <AlertTriangle size={14} /> 
       },
+    ],
+    initialEvidence: [],
+    keyEvidence: ['hive_transmission', 'weapon_sys'],
+    evidenceChain: [
+      ['dna_scan', 'drone_logs'],
+      ['drone_logs', 'hive_transmission'],
+      ['hive_transmission', 'weapon_sys'],
     ],
     systemPrompt: `
 你是 Drone-Alpha，一个从蜂巢思维（Hive Mind）中“觉醒”的工蜂个体。

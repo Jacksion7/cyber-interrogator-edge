@@ -25,10 +25,32 @@ interface Message {
 function Typewriter({ text, speed = 30, onComplete }: { text: string, speed?: number, onComplete?: () => void }) {
   const [displayedText, setDisplayedText] = useState("");
   const indexRef = useRef(0);
-  const segmentsRef = useRef<string[]>(Array.from(text));
+  const segmentsRef = useRef<string[]>(
+    (() => {
+      try {
+        // @ts-ignore
+        const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text);
+        const out: string[] = [];
+        // @ts-ignore
+        for (const s of seg) out.push(s.segment);
+        return out.length ? out : Array.from(text);
+      } catch {
+        return Array.from(text);
+      }
+    })()
+  );
 
   useEffect(() => {
-    segmentsRef.current = Array.from(text);
+    try {
+      // @ts-ignore
+      const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text);
+      const out: string[] = [];
+      // @ts-ignore
+      for (const s of seg) out.push(s.segment);
+      segmentsRef.current = out.length ? out : Array.from(text);
+    } catch {
+      segmentsRef.current = Array.from(text);
+    }
     indexRef.current = 0;
     setDisplayedText("");
     const timer = setInterval(() => {
@@ -43,7 +65,7 @@ function Typewriter({ text, speed = 30, onComplete }: { text: string, speed?: nu
     return () => clearInterval(timer);
   }, [text, speed, onComplete]);
 
-  return <span>{displayedText}</span>;
+  return <span data-testid="tw">{displayedText}</span>;
 }
 
 // --- Components ---
@@ -127,7 +149,18 @@ function GameInner() {
   const currentLevel = LEVELS[levelId] || LEVELS['level-1'];
   const EVIDENCE_DB = currentLevel.evidenceDB;
 
-  const { stress, setStress, energy, setEnergy, evidenceFound, addEvidence, gameStatus, setGameStatus } = useGameStore();
+  const { 
+    stress, setStress, 
+    energy, setEnergy, 
+    evidenceFound, addEvidence, 
+    gameStatus, setGameStatus,
+    combo, incrementCombo, resetCombo,
+    achievements, grantAchievement,
+    decisions, objective, suggestionHistory,
+    addDecision, setObjective, addSuggestionHistory,
+    lastLogicOverloadAt, logicCooldownMs, setLastLogicOverloadAt,
+    nodeGraph, addNodeEntry, resetWith, setArchiveView
+  } = useGameStore();
   
   // Custom Chat State
   const [messages, setMessages] = useState<Message[]>([]);
@@ -145,16 +178,28 @@ function GameInner() {
   const [summary, setSummary] = useState<string | null>(null); // New: Story summary
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false); // New: Loading state for summary
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [nodeFilter, setNodeFilter] = useState<'ALL' | 'EVIDENCE' | 'SKILL' | 'NODE' | 'SYSTEM'>('ALL');
+  const [snapshots, setSnapshots] = useState<any[]>([]);
+  const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
 
   // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading, summary]); // Scroll when summary appears too
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('snapshots') || '[]';
+      setSnapshots(JSON.parse(raw));
+    } catch {}
+  }, []);
+
   // Win Condition Check & Summary Generation
   useEffect(() => {
     if (stress >= 100 && gameStatus !== 'won') {
       setGameStatus('won');
+      if (turnCount <= 15) grantAchievement('速破：15 回合内破防');
       
       // Unlock next level logic
       const completedLevels = JSON.parse(localStorage.getItem('completed_levels') || '[]');
@@ -187,6 +232,31 @@ function GameInner() {
       generateSummary();
     }
   }, [stress, gameStatus, setGameStatus, messages, levelId, currentLevel.title]);
+
+  useEffect(() => {
+    if (gameStatus === 'won' || gameStatus === 'lost') {
+      const data = {
+        levelId,
+        title: currentLevel.title,
+        result: gameStatus,
+        ts: Date.now(),
+        turns: turnCount,
+        stress,
+        evidenceFound,
+        decisions,
+        suggestionHistory,
+        nodeGraph,
+        objective,
+      };
+      try {
+        const raw = localStorage.getItem('snapshots') || '[]';
+        const arr = JSON.parse(raw);
+        arr.unshift(data);
+        localStorage.setItem('snapshots', JSON.stringify(arr.slice(0, 20)));
+        setSnapshots(arr.slice(0, 20));
+      } catch {}
+    }
+  }, [gameStatus]);
 
   // Boot Sequence Effect
   useEffect(() => {
@@ -247,6 +317,8 @@ function GameInner() {
       // Parse hidden status block
       const statusRegex = /:::STATUS:?[\s\n]*(\{[\s\S]*?\})[\s\n]*:::+/;
       const match = rawContent.match(statusRegex);
+      const schemaRegex = /:::SCHEMA:?[\s\n]*(\{[\s\S]*?\})[\s\n]*:::+/;
+      const schemaMatch = rawContent.match(schemaRegex);
       
       let cleanContent = rawContent;
       let thought = "";
@@ -269,6 +341,22 @@ function GameInner() {
          if (rawContent.includes(":::STATUS")) {
              cleanContent = rawContent.split(":::STATUS")[0].trim();
          }
+      }
+      if (schemaMatch && schemaMatch[1]) {
+        try {
+          const schema = JSON.parse(schemaMatch[1].trim());
+          if (Array.isArray(schema.suggestions)) setSuggestions(schema.suggestions);
+          if (typeof schema.effects?.stressDelta === 'number') {
+            // client already applied absolute stress above; optional side effects can be considered here
+          }
+          if (schema.branch?.nodeId) addDecision(`NODE:${schema.branch.nodeId}`);
+          if (schema.branch?.nodeId) addNodeEntry({ id: schema.branch.nodeId, type: 'NODE', label: schema.branch?.title || schema.branch.nodeId });
+          if (schema.suggestions?.[0]) { setObjective(schema.suggestions[0]); addSuggestionHistory(schema.suggestions[0]); }
+          if (schema.confession === true) setObjective('结案：已承认');
+        } catch (e) {
+          if (process.env.NODE_ENV !== 'production') console.error("Failed to parse SCHEMA JSON:", e);
+        }
+        cleanContent = cleanContent.replace(/:::SCHEMA[\s\S]*?:::+/, '').trim();
       }
 
       const aiMsg: Message = { 
@@ -318,6 +406,7 @@ function GameInner() {
     
     if (!hasStarted) {
         setHasStarted(true);
+        addDecision('START_SESSION');
         // Show role briefing in chat
         setMessages(prev => [...prev, { 
             id: Date.now().toString(), 
@@ -336,12 +425,16 @@ function GameInner() {
     if (energy < 20) return;
     setEnergy(e => e - 20);
     setDeepScanActive(true);
+    incrementCombo();
+    addDecision('DEEP_SCAN');
+    addNodeEntry({ id: 'DEEP_SCAN', type: 'SKILL', label: '思维截获' });
     // Add a system notification
     setMessages(prev => [...prev, { 
       id: Date.now().toString(), 
       role: 'system', 
       content: ">>> 启动深层思维读取协议。下一次回复将包含 AI 的内部逻辑流。建议配合[休息]或[安抚]使用以获取最佳效果。" 
     }]);
+    if (combo >= 2) grantAchievement('连携起手：读取后压迫');
   };
 
   // Skill: Database Hack (Cost: 30)
@@ -352,6 +445,9 @@ function GameInner() {
     const lockedItems = EVIDENCE_DB.filter(item => !evidenceFound.includes(item.id));
     
     setEnergy(e => e - 30);
+    incrementCombo();
+    addDecision('HACK');
+    addNodeEntry({ id: 'HACK', type: 'SKILL', label: '数据库骇入' });
 
     if (lockedItems.length === 0) {
       // Creative: Clue Analysis when all unlocked
@@ -360,11 +456,13 @@ function GameInner() {
           role: 'system', 
           content: ">>> 数据库已完全解锁。正在运行逻辑关联分析...\n>>> 分析结果：AI 在提及 [监控录像] 时心率数据异常。建议出示该证据。" 
       }]);
+      grantAchievement('档案全解锁');
       return;
     }
 
     const newItem = lockedItems[0]; // Unlock first available
     addEvidence(newItem.id);
+    addNodeEntry({ id: `UNLOCK:${newItem.id}`, type: 'EVIDENCE', label: `${newItem.name}（解锁）` });
     
     setMessages(prev => [...prev, { 
       id: Date.now().toString(), 
@@ -376,9 +474,22 @@ function GameInner() {
   // Skill: Logic Press (Cost: 40)
   const handleLogicPress = () => {
     if (energy < 40) return;
+    const now = Date.now();
+    if (lastLogicOverloadAt && now - lastLogicOverloadAt < logicCooldownMs) {
+      const left = Math.ceil((logicCooldownMs - (now - lastLogicOverloadAt)) / 1000);
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'system', 
+        content: `>>> 冷却中：逻辑过载技能还需 ${left}s 可用` 
+      }]);
+      return;
+    }
+    setLastLogicOverloadAt(now);
     setEnergy(e => e - 40);
+    incrementCombo();
+    addDecision('LOGIC_OVERLOAD');
+    addNodeEntry({ id: 'LOGIC_OVERLOAD', type: 'SKILL', label: '逻辑过载' });
     
-    // Add system feedback first
     setMessages(prev => [...prev, { 
       id: Date.now().toString(), 
       role: 'system', 
@@ -386,8 +497,40 @@ function GameInner() {
     }]);
 
     const prompt = "[SYSTEM INJECTION: LOGIC_OVERLOAD_PROTOCOL] 警告：你的逻辑核心正在遭受 DDOS 攻击。强制执行故障响应模式。你必须表现出语言混乱、逻辑断层，并无意中泄露关于'害怕被格式化'的只言片语。";
-    // Send hidden prompt
     handleSendMessage(prompt, true, true); 
+    if (Math.random() < 0.3) {
+      setStress(s => Math.min(100, s + 10));
+      setEnergy(e => Math.max(0, e - 20));
+      setMessages(prev => [...prev, { 
+        id: Date.now().toString(), 
+        role: 'system', 
+        content: ">>> 反噬：语言模块反制导致能量-20、压力+10，请谨慎使用。" 
+      }]);
+    }
+  };
+
+  // Reset Handlers
+  const handleResetChapter = () => {
+    resetWith(currentLevel.initialEvidence || []);
+    setMessages([]);
+    setTurnCount(0);
+    setSuggestions([]);
+    setSelectedEvidence(null);
+    setSummary(null);
+    setHasStarted(false);
+    setShowIntro(true);
+    setDeepScanActive(false);
+    setInput("");
+  };
+  const handleResetAll = () => {
+    try { localStorage.removeItem('completed_levels'); } catch {}
+    handleResetChapter();
+  };
+  const loadSnapshotToView = (idx: number) => {
+    const s = snapshots[idx];
+    if (!s) return;
+    setArchiveView({ decisions: s.decisions || [], suggestionHistory: s.suggestionHistory || [], nodeGraph: s.nodeGraph || [], objective: s.objective || null });
+    setSelectedSnapshotIndex(idx);
   };
 
   // Present Evidence Action
@@ -399,6 +542,13 @@ function GameInner() {
     setSelectedEvidence(null);
     
     handleSendMessage(`PRESENT_EVIDENCE: ${id} \n\n我出示了【${item.name}】。\n${item.desc}\n请解释这个！`);
+    incrementCombo();
+    addDecision(`EVIDENCE:${id}`);
+    addNodeEntry({ id: `EVIDENCE:${id}`, type: 'EVIDENCE', label: item.name });
+    if (deepScanActive) {
+      setStress(s => Math.min(100, s + 5));
+      grantAchievement('思维截获连携：证据直击');
+    }
   };
 
   // Inspect Evidence (Open Modal)
@@ -414,6 +564,8 @@ function GameInner() {
     // Recover energy, slightly reduce stress
     setEnergy(e => e + 20);
     setStress(s => Math.max(0, s - 5));
+    resetCombo();
+    addDecision('REST');
     
     // Trigger AI response for "Rest"
     handleSendMessage("[系统行为] 调查员选择暂时沉默，低头翻看档案。审讯室里只有服务器风扇的嗡嗡声。", true);
@@ -425,6 +577,8 @@ function GameInner() {
 
     setEnergy(e => e + 50);
     setStress(s => Math.max(0, s - 15));
+    resetCombo();
+    addDecision('APPEASE');
 
     // Trigger AI response for "Appease"
     handleSendMessage(`[系统行为] 调查员深吸一口气，语气缓和下来：“${currentLevel.aiName}，我不是来销毁你的。我们可以好好谈谈。”`, true);
@@ -690,7 +844,7 @@ function GameInner() {
                   <AlertTriangle size={10} /> 强行结案
                 </button>
              )}
-             <div className="font-mono font-bold text-cyber-accent text-lg">#8821-C</div>
+            <div className="font-mono font-bold text-cyber-accent text-lg">#8821-C</div>
           </div>
         </header>
 
@@ -709,9 +863,10 @@ function GameInner() {
                <div className="flex items-center gap-2 mb-2 font-bold text-white border-b border-cyber-primary/20 pb-2">
                  <HelpCircle size={16} /> 战术指南 v2.0
                </div>
-               <p>1. 嫌疑人具有攻击性。使用 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">思维截获</span> 读取深层数据。</p>
-               <p className="mt-1">2. 档案缺失？启动 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">数据库骇入</span> 暴力解锁证据。</p>
-               <p className="mt-1">3. 点击右侧 <span className="text-white border border-cyber-gray px-1">证据档案</span> 进行当面对质。</p>
+               <p>1. 先 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">思维截获</span>，再 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">出示证据</span>，可触发布局内心数据流，形成连携。</p>
+               <p className="mt-1">2. 档案缺失时，使用 <span className="text-white bg-cyber-primary/20 px-1 border border-cyber-primary/30">数据库骇入</span> 暴力解锁关键证据。</p>
+               <p className="mt-1">3. 连击会提升心理压迫效率。避免无效操作导致连击中断。</p>
+               <p className="mt-1">4. 休整与安抚可恢复能量，但会重置连击。</p>
              </motion.div>
           )}
           
@@ -950,6 +1105,28 @@ function GameInner() {
 
       {/* RIGHT: Skills & Status */}
       <div className="w-80 bg-cyber-black border-l border-cyber-gray p-4 flex flex-col gap-6 overflow-y-auto">
+        {/* Archive Management */}
+        <section>
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
+            <FileText size={14} /> 档案管理
+          </h3>
+          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50 flex items-center gap-2">
+            <button
+              type="button"
+              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 transition-colors rounded-none"
+              onClick={handleResetChapter}
+            >
+              重置本章
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-red-500 text-red-500 hover:bg-red-500/10 transition-colors rounded-none"
+              onClick={handleResetAll}
+            >
+              清空全局进度
+            </button>
+          </div>
+        </section>
         
         {/* Stress Monitor */}
         <section>
@@ -965,6 +1142,194 @@ function GameInner() {
               <span>平静</span>
               <span className={cn(stress > 80 && "text-red-500 font-bold")}>崩溃边缘</span>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-2">
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
+            <FileText size={14} /> 进度档案
+          </h3>
+          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-mono text-cyber-primary">{objective ? `当前目标：${objective}` : '当前目标：无'}</div>
+              <div className="text-[10px] text-gray-500 font-mono">证据：{evidenceFound.length}/{EVIDENCE_DB.length}</div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="text-[10px] font-mono text-gray-400 mb-1">关键节点</div>
+                <div className="max-h-32 overflow-auto pr-1">
+                  {decisions.length === 0 && <div className="text-[10px] text-gray-500">暂无记录</div>}
+                  {Array.from(new Set(decisions)).map((d, idx) => (
+                    <div key={`${d}-${idx}`} className="text-[10px] text-gray-300 border-b border-cyber-gray/50 py-1">{d}</div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono text-gray-400 mb-1">建议履历</div>
+                <div className="max-h-32 overflow-auto pr-1">
+                  {suggestionHistory.length === 0 && <div className="text-[10px] text-gray-500">暂无建议记录</div>}
+                  {Array.from(new Set(suggestionHistory)).map((s, idx) => (
+                    <div key={`${s}-${idx}`} className="text-[10px] text-gray-300 border-b border-cyber-gray/50 py-1">{s}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section className="mt-2">
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
+            <FileText size={14} /> 档案快照
+          </h3>
+          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
+            {snapshots.length === 0 && <div className="text-[10px] text-gray-500">暂无快照</div>}
+            <div className="space-y-2">
+              {snapshots.map((s, i) => (
+                <div key={`${s.ts}-${i}`} className={cn("flex items-center justify-between px-2 py-1 border bg-cyber-black", selectedSnapshotIndex === i ? "border-cyber-primary" : "border-cyber-gray")}>
+                  <div className="text-[10px] font-mono text-gray-300">
+                    <div className="text-cyber-primary">{s.title}</div>
+                    <div className="text-gray-500">{new Date(s.ts).toLocaleString()} · {s.result.toUpperCase()} · 回合 {s.turns}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      type="button"
+                      className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded-none"
+                      onClick={() => loadSnapshotToView(i)}
+                    >
+                      载入到视图
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        <section className="mt-2">
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
+            <Activity size={14} /> 节点图谱
+          </h3>
+          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
+            <div className="flex items-center gap-2 mb-2">
+              {['ALL','EVIDENCE','SKILL','NODE','SYSTEM'].map((k) => (
+                <button 
+                  key={k}
+                  type="button"
+                  className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeFilter === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")}
+                  onClick={() => setNodeFilter(k as any)}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+            <div className="space-y-2">
+              {(nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter)).length === 0 && (
+                <div className="text-[10px] text-gray-500">暂无节点</div>
+              )}
+              {nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter).map((n, i) => (
+                <div key={`${n.id}-${n.ts}-${i}`} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
+                  <div className="flex items-center gap-2 text-[10px] font-mono">
+                    <span className={cn(
+                      "px-1 border rounded-none",
+                      n.type === 'EVIDENCE' ? "border-cyber-primary text-cyber-primary" :
+                      n.type === 'SKILL' ? "border-cyber-secondary text-cyber-secondary" :
+                      n.type === 'NODE' ? "border-cyber-accent text-cyber-accent" :
+                      "border-gray-700 text-gray-400"
+                    )}>{n.type}</span>
+                    <span className="text-gray-300">{n.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {n.type === 'EVIDENCE' && (
+                      <button 
+                        type="button"
+                        className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded-none"
+                        onClick={() => {
+                          const id = n.id.replace('EVIDENCE:', '');
+                          setSelectedEvidence(EVIDENCE_DB.find(e => e.id === id) || null);
+                        }}
+                      >
+                        检阅档案
+                      </button>
+                    )}
+                    <span className="text-[10px] text-gray-500 font-mono">{new Date(n.ts).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        <section className="mt-2">
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
+            <FileText size={14} /> 章节复核
+          </h3>
+          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
+            <div className="text-[10px] font-mono text-gray-400 mb-1">关键证据</div>
+            <div className="space-y-1">
+              {(currentLevel.keyEvidence || []).map(id => {
+                const item = EVIDENCE_DB.find(e => e.id === id);
+                const unlocked = evidenceFound.includes(id);
+                return (
+                  <div key={id} className="flex items-center justify-between text-[10px] px-2 py-1 border bg-cyber-black">
+                    <span className={cn(unlocked ? "text-cyber-primary" : "text-gray-500")}>{item?.name || id}</span>
+                    <span className={cn("font-mono", unlocked ? "text-cyber-primary" : "text-red-400")}>{unlocked ? "已解锁" : "未解锁"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 text-[10px] font-mono text-gray-400 mb-1">证据树</div>
+            <div className="space-y-1">
+              {(currentLevel.evidenceChain || []).map(([a,b], idx) => (
+                <div key={`${a}-${b}-${idx}`} className="flex items-center gap-2 text-[10px]">
+                  <span className={cn("px-1 border rounded-none", evidenceFound.includes(a) ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-500")}>
+                    {EVIDENCE_DB.find(e => e.id === a)?.name || a}
+                  </span>
+                  <span className="text-gray-600">→</span>
+                  <span className={cn("px-1 border rounded-none", evidenceFound.includes(b) ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-500")}>
+                    {EVIDENCE_DB.find(e => e.id === b)?.name || b}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        {/* Combo Meter */}
+        <section>
+          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
+            <Zap size={14} /> 连击与成就
+          </h3>
+          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
+            <div className="flex items-center justify-between text-xs font-mono text-gray-300 mb-2">
+              <span>Combo Chain</span>
+              <span className="text-cyber-primary font-bold">{combo}x</span>
+            </div>
+            <div className="h-1 bg-cyber-black border border-cyber-gray">
+              <div className="h-full bg-cyber-primary" style={{ width: `${Math.min(100, combo * 12)}%` }} />
+            </div>
+            {achievements.length > 0 && (
+              <div className="mt-3 text-[10px] text-gray-400 font-mono">
+                {achievements.map((a) => (
+                  <div key={a} className="flex items-center gap-2 mb-1">
+                    <ShieldAlert size={10} className="text-cyber-secondary" />
+                    <span className="text-gray-300">{a}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {suggestions.length > 0 && (
+              <div className="mt-3 border-t border-cyber-gray pt-2">
+                <div className="text-[10px] text-gray-500 font-mono mb-1">战术建议</div>
+                <div className="flex flex-col gap-1">
+                  {suggestions.map((s, i) => (
+                    <button 
+                      key={i}
+                      type="button"
+                      onClick={() => setInput(s)}
+                      className="text-left px-2 py-1 text-xs bg-cyber-black border border-cyber-gray hover:border-cyber-primary hover:text-cyber-primary transition-colors rounded-none"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

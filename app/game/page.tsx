@@ -182,6 +182,8 @@ function GameInner() {
   const [nodeFilter, setNodeFilter] = useState<'ALL' | 'EVIDENCE' | 'SKILL' | 'NODE' | 'SYSTEM'>('ALL');
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
+  const [nodeViewMode, setNodeViewMode] = useState<'LIST' | 'TIMELINE' | 'TREE'>('LIST');
+  const [timelineZoom, setTimelineZoom] = useState<number>(1);
 
   // Auto-scroll
   useEffect(() => {
@@ -1219,41 +1221,137 @@ function GameInner() {
                   {k}
                 </button>
               ))}
+              <div className="ml-auto flex items-center gap-2">
+                {['LIST','TIMELINE','TREE'].map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeViewMode === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")}
+                    onClick={() => setNodeViewMode(k as any)}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="space-y-2">
-              {(nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter)).length === 0 && (
-                <div className="text-[10px] text-gray-500">暂无节点</div>
-              )}
-              {nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter).map((n, i) => (
-                <div key={`${n.id}-${n.ts}-${i}`} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
-                  <div className="flex items-center gap-2 text-[10px] font-mono">
-                    <span className={cn(
-                      "px-1 border rounded-none",
-                      n.type === 'EVIDENCE' ? "border-cyber-primary text-cyber-primary" :
-                      n.type === 'SKILL' ? "border-cyber-secondary text-cyber-secondary" :
-                      n.type === 'NODE' ? "border-cyber-accent text-cyber-accent" :
-                      "border-gray-700 text-gray-400"
-                    )}>{n.type}</span>
-                    <span className="text-gray-300">{n.label}</span>
+            {nodeViewMode === 'LIST' && (
+              <div className="space-y-2">
+                {(nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter)).length === 0 && (
+                  <div className="text-[10px] text-gray-500">暂无节点</div>
+                )}
+                {nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter).map((n, i) => (
+                  <div key={`${n.id}-${n.ts}-${i}`} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
+                    <div className="flex items-center gap-2 text-[10px] font-mono">
+                      <span className={cn(
+                        "px-1 border rounded-none",
+                        n.type === 'EVIDENCE' ? "border-cyber-primary text-cyber-primary" :
+                        n.type === 'SKILL' ? "border-cyber-secondary text-cyber-secondary" :
+                        n.type === 'NODE' ? "border-cyber-accent text-cyber-accent" :
+                        "border-gray-700 text-gray-400"
+                      )}>{n.type}</span>
+                      <span className="text-gray-300">{n.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {n.type === 'EVIDENCE' && (
+                        <button 
+                          type="button"
+                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded-none"
+                          onClick={() => {
+                            const id = n.id.replace('EVIDENCE:', '');
+                            setSelectedEvidence(EVIDENCE_DB.find(e => e.id === id) || null);
+                          }}
+                        >
+                          检阅档案
+                        </button>
+                      )}
+                      <span className="text-[10px] text-gray-500 font-mono">{new Date(n.ts).toLocaleTimeString()}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {n.type === 'EVIDENCE' && (
-                      <button 
-                        type="button"
-                        className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded-none"
-                        onClick={() => {
-                          const id = n.id.replace('EVIDENCE:', '');
-                          setSelectedEvidence(EVIDENCE_DB.find(e => e.id === id) || null);
-                        }}
-                      >
-                        检阅档案
-                      </button>
-                    )}
-                    <span className="text-[10px] text-gray-500 font-mono">{new Date(n.ts).toLocaleTimeString()}</span>
-                  </div>
+                ))}
+              </div>
+            )}
+            {nodeViewMode === 'TIMELINE' && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500 font-mono">缩放</span>
+                  <input type="range" min={0.6} max={2} step={0.1} value={timelineZoom} onChange={(e) => setTimelineZoom(parseFloat(e.target.value))} />
                 </div>
-              ))}
-            </div>
+                <div className="overflow-x-auto">
+                  {(() => {
+                    const filtered = nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter);
+                    if (filtered.length === 0) return <div className="text-[10px] text-gray-500">暂无节点</div>;
+                    const minTs = Math.min(...filtered.map(n => n.ts));
+                    const maxTs = Math.max(...filtered.map(n => n.ts));
+                    const width = Math.max(600, (maxTs - minTs) / 1000 * 60) * timelineZoom; // scale width by time span
+                    const height = 160;
+                    const colorFor = (t: string) => t === 'EVIDENCE' ? '#38bdf8' : t === 'SKILL' ? '#22c55e' : t === 'NODE' ? '#0ea5e9' : '#64748b';
+                    const yFor = (t: string) => t === 'EVIDENCE' ? 40 : t === 'SKILL' ? 80 : t === 'NODE' ? 120 : 100;
+                    const xFor = (ts: number) => {
+                      const span = maxTs - minTs || 1;
+                      return 40 + ((ts - minTs) / span) * (width - 80);
+                    };
+                    return (
+                      <svg width={width} height={height} className="bg-cyber-black border border-cyber-gray">
+                        <line x1="20" y1="20" x2={width-20} y2="20" stroke="#334155" strokeWidth="1"/>
+                        <line x1="20" y1="60" x2={width-20} y2="60" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
+                        <line x1="20" y1="100" x2={width-20} y2="100" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
+                        <line x1="20" y1="140" x2={width-20} y2="140" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
+                        {filtered.map((n, i) => {
+                          const x = xFor(n.ts);
+                          const y = yFor(n.type);
+                          return (
+                            <g key={`${n.id}-${n.ts}-${i}`}>
+                              {i > 0 && (
+                                <line x1={xFor(filtered[i-1].ts)} y1={yFor(filtered[i-1].type)} x2={x} y2={y} stroke="#475569" strokeWidth="1"/>
+                              )}
+                              <circle cx={x} cy={y} r={6} fill={colorFor(n.type)} />
+                              <text x={x+8} y={y+4} fontSize="10" fill="#cbd5e1" className="font-mono">{n.label}</text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+            {nodeViewMode === 'TREE' && (
+              <div className="space-y-2">
+                <div className="overflow-x-auto">
+                  {(() => {
+                    const chains = currentLevel.evidenceChain || [];
+                    if (chains.length === 0) return <div className="text-[10px] text-gray-500">暂无证据树</div>;
+                    const width = Math.max(600, chains.reduce((acc, c) => Math.max(acc, c.length), 0) * 180);
+                    const height = Math.max(140, chains.length * 80);
+                    return (
+                      <svg width={width} height={height} className="bg-cyber-black border border-cyber-gray">
+                        {chains.map((chain, row) => {
+                          return chain.map((id, idx) => {
+                            const x = 60 + idx * 180;
+                            const y = 40 + row * 80;
+                            const unlocked = evidenceFound.includes(id);
+                            const item = EVIDENCE_DB.find(e => e.id === id);
+                            const nextId = chain[idx+1];
+                            return (
+                              <g key={`${id}-${row}-${idx}`}>
+                                <rect x={x-40} y={y-18} width={120} height={36} fill={unlocked ? 'rgba(56,189,248,0.15)' : 'rgba(148,163,184,0.15)'} stroke={unlocked ? '#38bdf8' : '#64748b'} />
+                                <text x={x-34} y={y+4} fontSize="10" fill={unlocked ? '#38bdf8' : '#94a3b8'} className="font-mono">{item?.name || id}</text>
+                                {nextId && (
+                                  <g>
+                                    <line x1={x+80} y1={y} x2={x+180} y2={y} stroke="#334155" strokeWidth="1"/>
+                                    <polygon points={`${x+180},${y} ${x+172},${y-4} ${x+172},${y+4}`} fill="#334155" />
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          });
+                        })}
+                      </svg>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
           </div>
         </section>
         <section className="mt-2">

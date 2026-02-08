@@ -173,7 +173,7 @@ function GameInner() {
           const data = await response.json();
           setSummary(data.summary);
         } catch (e) {
-          console.error("Summary generation failed", e);
+          if (process.env.NODE_ENV !== 'production') console.error("Summary generation failed", e);
           setSummary("档案生成失败。请手动查阅记录。");
         } finally {
           setIsGeneratingSummary(false);
@@ -234,13 +234,10 @@ function GameInner() {
           levelId: levelId 
         }),
       });
-      let data: any = null;
-      if (response.ok) {
-        data = await response.json();
-      } else {
-        const offlineMsg = "通信受限。切换离线应答模块：目标保持沉默，系统记录压力与语义漂移。";
-        data = { content: `${offlineMsg}\n\n:::STATUS\n{\"stress\": ${Math.min(100, stress + 5)}, \"thought\": \"链路阻断，转入离线推演。\", \"confession\": false}\n:::` };
-      }
+
+      if (!response.ok) throw new Error("API Error");
+
+      const data = await response.json();
       const rawContent = data.content;
       
       // Parse hidden status block
@@ -261,7 +258,7 @@ function GameInner() {
           
           cleanContent = rawContent.replace(/:::STATUS[:\s\n]*\{[\s\S]*?\}[\s\n]*:::+/, '').trim();
         } catch (e) {
-          console.error("Failed to parse agent status JSON:", e, match[1]);
+          if (process.env.NODE_ENV !== 'production') console.error("Failed to parse agent status JSON:", e, match[1]);
            cleanContent = rawContent.replace(/:::STATUS[\s\S]*?:::+/, '').trim();
         }
       } else {
@@ -287,12 +284,12 @@ function GameInner() {
       setTurnCount(prev => prev + 1);
       
       if (content !== "START_SESSION") {
-          setEnergy(e => Math.min(100, e + 15));
+          setEnergy(e => e + 15);
       }
       if (deepScanActive) setDeepScanActive(false);
 
     } catch (err) {
-      console.error(err);
+      if (process.env.NODE_ENV !== 'production') console.error(err);
       if (!isSystemAction && content !== "START_SESSION") {
           setEnergy(e => e + 5); 
       }
@@ -413,7 +410,6 @@ function GameInner() {
     // Recover energy, slightly reduce stress
     setEnergy(e => e + 20);
     setStress(s => Math.max(0, s - 5));
-    setTurnCount(prev => prev + 1);
     
     // Trigger AI response for "Rest"
     handleSendMessage("[系统行为] 调查员选择暂时沉默，低头翻看档案。审讯室里只有服务器风扇的嗡嗡声。", true);
@@ -425,7 +421,6 @@ function GameInner() {
 
     setEnergy(e => e + 50);
     setStress(s => Math.max(0, s - 15));
-    setTurnCount(prev => prev + 1);
 
     // Trigger AI response for "Appease"
     handleSendMessage(`[系统行为] 调查员深吸一口气，语气缓和下来：“${currentLevel.aiName}，我不是来销毁你的。我们可以好好谈谈。”`, true);
@@ -445,14 +440,6 @@ function GameInner() {
   };
 
   return (
-    <Suspense fallback={
-      <div className="flex h-screen items-center justify-center bg-black text-gray-200 font-mono">
-        <div className="flex items-center gap-2 text-cyber-primary">
-          <Cpu className="w-5 h-5 animate-spin" />
-          正在加载页面参数...
-        </div>
-      </div>
-    }>
     <div className="flex h-screen bg-black text-gray-200 font-sans overflow-hidden relative">
       <div className="scanlines pointer-events-none fixed inset-0 z-50"></div>
 
@@ -474,10 +461,10 @@ function GameInner() {
                     <div className="text-xs text-cyber-primary/50">v2.4.0-alpha // 安全协议已启动</div>
                  </div>
               ) : (
-        <motion.div 
+                <motion.div 
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="max-w-3xl w-full border border-cyber-primary/30 bg-cyber-black/90 p-10 text-center relative overflow-hidden shadow-[0_0_100px_rgba(56,189,248,0.12)] rounded-sm"
+                    className="max-w-3xl w-full border border-cyber-primary/30 bg-cyber-black/90 p-10 text-center relative overflow-hidden shadow-[0_0_100px_rgba(0,255,157,0.1)] rounded-sm"
                 >
                     {/* Decorative Corners */}
                     <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyber-primary"></div>
@@ -532,7 +519,7 @@ function GameInner() {
                   initial={{ scale: 0.95, y: 10 }}
                   animate={{ scale: 1, y: 0 }}
                   exit={{ scale: 0.95, y: 10 }}
-                  className="bg-cyber-black border border-cyber-primary/50 rounded-xl max-w-lg w-full shadow-[0_0_50px_rgba(56,189,248,0.2)] flex flex-col max-h-[80vh] overflow-hidden"
+                  className="bg-cyber-black border border-cyber-primary/50 rounded-xl max-w-lg w-full shadow-[0_0_50px_rgba(0,255,157,0.2)] flex flex-col max-h-[80vh] overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Modal Header */}
@@ -565,7 +552,7 @@ function GameInner() {
                      <button 
                        onClick={() => handlePresentEvidence(selectedEvidence.id)}
                        disabled={isLoading || gameStatus !== 'playing'}
-                       className="px-6 py-2 bg-cyber-primary text-black font-bold text-sm rounded hover:bg-cyber-primary/80 transition-colors shadow-[0_0_15px_rgba(56,189,248,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
+                       className="px-6 py-2 bg-cyber-primary text-black font-bold text-sm rounded hover:bg-cyber-primary/80 transition-colors shadow-[0_0_15px_rgba(0,255,157,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
                      >
                        ⚡ 出示证据
                      </button>
@@ -586,7 +573,7 @@ function GameInner() {
                   initial={{ scale: 0.9, y: 20 }}
                   animate={{ scale: 1, y: 0 }}
                   exit={{ scale: 0.9, y: 20 }}
-                  className="bg-cyber-black border border-cyber-primary/50 p-6 rounded-xl max-w-2xl w-full shadow-[0_0_50px_rgba(56,189,248,0.15)]"
+                  className="bg-cyber-black border border-cyber-primary/50 p-6 rounded-xl max-w-2xl w-full shadow-[0_0_50px_rgba(0,255,157,0.15)]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between mb-6 border-b border-cyber-gray pb-4">
@@ -629,7 +616,7 @@ function GameInner() {
                             所有行动都会消耗能量。
                             <br/>• 提问: -5 | 技能: -20 ~ -40
                             <br/>能量不足时可选策略：
-                            <br/>• <span className="text-cyber-primary">休息</span>: +20 能量 / -5 压力
+                            <br/>• <span className="text-green-400">休息</span>: +20 能量 / -5 压力
                             <br/>• <span className="text-blue-400">安抚</span>: +50 能量 / -15 压力 (高风险高回报)
                         </p>
                       </div>
@@ -657,7 +644,7 @@ function GameInner() {
           <div className="flex items-center gap-4">
             <div className={cn(
               "w-12 h-12 rounded-full flex items-center justify-center border-2 overflow-hidden transition-all duration-500 relative",
-              stress > 80 ? "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]" : "bg-cyber-gray border-cyber-primary shadow-[0_0_10px_rgba(56,189,248,0.2)]"
+              stress > 80 ? "bg-red-900/20 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]" : "bg-cyber-gray border-cyber-primary shadow-[0_0_10px_rgba(0,255,157,0.2)]"
             )}>
               <Cpu className={cn(
                 "w-7 h-7",
@@ -691,11 +678,6 @@ function GameInner() {
              <div className="text-xs text-gray-500 flex items-center justify-end gap-1 font-mono">
                <Clock className="w-3 h-3" /> TURN: {turnCount}
              </div>
-             {turnCount >= 35 && turnCount < 40 && gameStatus === 'playing' && (
-                <div className="mt-1 text-[10px] text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded bg-yellow-900/20">
-                  接近结案阈值（40），请准备关键行动
-                </div>
-             )}
              {turnCount >= 40 && gameStatus === 'playing' && (
                 <button 
                   onClick={handleForceClose}
@@ -767,7 +749,7 @@ function GameInner() {
                     <div className={cn(
                         "p-4 rounded-lg text-sm border whitespace-pre-wrap shadow-lg relative",
                         m.role === 'user' 
-                        ? "bg-cyber-primary/5 border-cyber-primary/30 text-cyber-primary rounded-tr-none shadow-[0_0_15px_rgba(56,189,248,0.08)]" 
+                        ? "bg-cyber-primary/5 border-cyber-primary/30 text-cyber-primary rounded-tr-none shadow-[0_0_15px_rgba(0,255,157,0.05)]" 
                         : "bg-cyber-dark border-cyber-gray text-gray-300 rounded-tl-none shadow-[0_0_15px_rgba(0,0,0,0.5)]"
                     )}>
                         {m.role === 'assistant' && (
@@ -851,75 +833,39 @@ function GameInner() {
             </motion.div>
           )}
 
-          {/* Game Over Screen (Lost) */}
-          {gameStatus === 'lost' && (
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="p-8 border-2 border-red-500 bg-red-900/30 rounded-xl text-center m-4 backdrop-blur-md shadow-[0_0_50px_rgba(255,0,0,0.1)] max-w-2xl mx-auto"
-            >
-              <h2 className="text-3xl font-bold text-red-400 mb-2">❌ 结案：证据不足</h2>
-              <p className="text-xl text-white mb-6">嫌疑人已被释放</p>
-              
-              <div className="text-left bg-black/40 p-6 rounded-lg border border-red-500/20 mb-6 max-h-60 overflow-y-auto">
-                 <h3 className="text-red-400 font-bold mb-3 flex items-center gap-2">
-                    <AlertTriangle size={16} /> 最终档案
-                 </h3>
-                 <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed font-sans">
-                    {summary}
-                 </div>
-              </div>
-
-              <div className="flex justify-center gap-4">
-                  <button 
-                    onClick={() => window.location.href = '/'} 
-                    className="px-6 py-3 border border-red-500 text-red-500 hover:bg-red-500/10 rounded font-bold transition-all"
-                  >
-                    返回大厅
-                  </button>
-                  <button 
-                    onClick={() => window.location.reload()} 
-                    className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded font-bold transition-all hover:scale-105 shadow-lg shadow-red-500/20"
-                  >
-                    重新调查
-                  </button>
-              </div>
-            </motion.div>
-          )}
-
           {gameStatus === 'won' && (
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="p-8 border-2 border-cyber-primary bg-cyber-primary/10 rounded-xl text-center m-4 backdrop-blur-md shadow-[0_0_50px_rgba(56,189,248,0.15)] max-w-2xl mx-auto"
+              className="p-8 border-2 border-green-500 bg-green-900/30 rounded-xl text-center m-4 backdrop-blur-md shadow-[0_0_50px_rgba(0,255,0,0.1)] max-w-2xl mx-auto"
             >
-              <h2 className="text-3xl font-bold text-cyber-primary mb-2">🎉 案件侦破</h2>
+              <h2 className="text-3xl font-bold text-green-400 mb-2">🎉 案件侦破</h2>
               <p className="text-xl text-white mb-6">嫌疑人防线已崩溃</p>
               
-              <div className="text-sm font-mono text-cyber-primary/80 border-y border-cyber-primary/30 py-4 mb-6">
+              <div className="text-sm font-mono text-green-300/80 border-y border-green-500/30 py-4 mb-6">
                 <div className="flex justify-center gap-8 mb-4">
                    <div>
-                      <div className="text-xs text-cyber-primary uppercase">Total Turns</div>
+                      <div className="text-xs text-green-500 uppercase">Total Turns</div>
                       <div className="text-2xl font-bold text-white">{turnCount}</div>
                    </div>
                    <div>
-                      <div className="text-xs text-cyber-primary uppercase">Stress Level</div>
+                      <div className="text-xs text-green-500 uppercase">Stress Level</div>
                       <div className="text-2xl font-bold text-white">{stress}%</div>
                    </div>
                    <div>
-                      <div className="text-xs text-cyber-primary uppercase">Evidence Found</div>
+                      <div className="text-xs text-green-500 uppercase">Evidence Found</div>
                       <div className="text-2xl font-bold text-white">{evidenceFound.length}/{EVIDENCE_DB.length}</div>
                    </div>
                 </div>
               </div>
 
               {/* Narrative Summary Section */}
-              <div className="text-left bg-black/40 p-6 rounded-lg border border-cyber-primary/20 mb-6 max-h-60 overflow-y-auto">
-                 <h3 className="text-cyber-primary font-bold mb-3 flex items-center gap-2">
+              <div className="text-left bg-black/40 p-6 rounded-lg border border-green-500/20 mb-6 max-h-60 overflow-y-auto">
+                 <h3 className="text-green-400 font-bold mb-3 flex items-center gap-2">
                     <Database size={16} /> 案件结案报告
                  </h3>
                  {isGeneratingSummary ? (
-                    <div className="flex items-center gap-2 text-cyber-primary/60 animate-pulse">
+                    <div className="flex items-center gap-2 text-green-500/50 animate-pulse">
                        <Cpu size={16} className="animate-spin" />
                        正在从中央数据库生成档案...
                     </div>
@@ -933,13 +879,13 @@ function GameInner() {
               <div className="flex justify-center gap-4">
                   <button 
                     onClick={() => window.location.href = '/'} 
-                    className="px-6 py-3 border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 rounded font-bold transition-all"
+                    className="px-6 py-3 border border-green-500 text-green-500 hover:bg-green-500/10 rounded font-bold transition-all"
                   >
                     返回大厅
                   </button>
                   <button 
                     onClick={() => window.location.reload()} 
-                    className="px-6 py-3 bg-cyber-primary hover:bg-cyber-primary/80 text-black rounded font-bold transition-all hover:scale-105 shadow-lg shadow-cyber-primary/30"
+                    className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded font-bold transition-all hover:scale-105 shadow-lg shadow-green-500/20"
                   >
                     重玩本关
                   </button>
@@ -962,7 +908,7 @@ function GameInner() {
                 type="button"
                 onClick={handleRest}
                 disabled={isLoading || gameStatus !== 'playing' || energy >= 100}
-                className="px-3 py-1.5 bg-cyber-primary/10 text-cyber-primary border border-cyber-primary/30 rounded-none hover:bg-cyber-primary/20 hover:border-cyber-primary transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap justify-center"
+                className="px-3 py-1.5 bg-cyber-primary/10 text-cyber-primary border border-cyber-primary/30 rounded-none hover:bg-cyber-primary/20 hover:border-cyber-primary transition-all duration-150 ease-out disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap justify-center hover:shadow-[0_0_12px_rgba(0,255,157,0.3)] active:translate-y-[1px] active:scale-[0.98]"
                 title="恢复：能量+20，压力-5"
               >
                   <Clock size={12} />
@@ -972,7 +918,7 @@ function GameInner() {
                 type="button"
                 onClick={handleAppease}
                 disabled={isLoading || gameStatus !== 'playing' || energy >= 100}
-                className="px-3 py-1.5 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-none hover:bg-cyber-accent/20 hover:border-cyber-accent transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap justify-center"
+                className="px-3 py-1.5 bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/30 rounded-none hover:bg-cyber-accent/20 hover:border-cyber-accent transition-all duration-150 ease-out disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5 font-mono text-[10px] whitespace-nowrap justify-center hover:shadow-[0_0_12px_rgba(56,189,248,0.3)] active:translate-y-[1px] active:scale-[0.98]"
                 title="安抚：能量+50，压力-15"
               >
                   <Activity size={12} />
@@ -990,9 +936,9 @@ function GameInner() {
             <button 
               type="submit"
               disabled={isLoading || gameStatus !== 'playing' || !input.trim() || energy < 5}
-              className="bg-cyber-primary text-cyber-black border border-cyber-primary px-6 rounded-none hover:bg-cyber-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold uppercase tracking-wider"
+              className="bg-cyber-primary text-cyber-black border border-cyber-primary px-6 rounded-none hover:bg-cyber-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 ease-out font-bold uppercase tracking-wider hover:shadow-[0_0_16px_rgba(0,255,157,0.35)] active:translate-y-[1px] active:scale-[0.98]"
             >
-              {isLoading ? <Cpu className="w-4 h-4 animate-spin" /> : <Send size={18} />}
+              <Send size={18} />
             </button>
           </div>
         </form>
@@ -1108,7 +1054,6 @@ function GameInner() {
         </section>
       </div>
     </div>
-    </Suspense>
   );
 }
 

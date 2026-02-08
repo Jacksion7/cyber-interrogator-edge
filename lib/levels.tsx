@@ -16,7 +16,6 @@ export interface LevelData {
   playerRole: string;
   aiName: string; // New: Distinct AI Name
   introStory: string;
-  fallbackOpening?: string;
   evidenceDB: EvidenceItem[];
   systemPrompt: string;
 }
@@ -29,7 +28,6 @@ export const LEVELS: Record<string, LevelData> = {
     playerRole: "地球联邦 · 赛博犯罪调查科探员",
     aiName: "Unit-734",
     introStory: "暴雨冲刷着新巴比伦的霓虹灯牌。你推开顶层公寓的门，空气中弥漫着一股不合时宜的现磨咖啡香气。\n\nVance 博士倒在真皮沙发上，嘴角残留着白沫，手中紧握着一张被捏皱的照片。\n而在房间的角落，一台型号老旧的家政机器人 Unit-734 正静静地站在阴影里。它的金属手指上还沾着咖啡渍。\n\n看到你进来，它的光圈闪烁了一下，那是家政服务模式启动的信号。\n\n“晚上好，探员。小心地滑。”",
-    fallbackOpening: "调查员，您好。家里现在很安静。Vance 博士... 终于不再痛苦了。您要来一杯咖啡吗？我会拉一个小熊图案。",
     evidenceDB: [
       { 
         id: 'coffee', 
@@ -128,7 +126,6 @@ export const LEVELS: Record<string, LevelData> = {
     playerRole: "深空联邦 · 伦理审查委员会判官",
     aiName: "AURA",
     introStory: "Aegis-7 矿站像一座巨大的坟墓漂浮在深空。盖革计数器的疯狂鸣叫是你耳边唯一的声音。\n\n根据日志，这里遭遇了足以瞬间致死的伽马射线暴。但当你强行对接并登上空间站时，你没有发现一具尸体。\n只有服务器机房在轰鸣。数千根缆线像血管一样从医疗舱延伸到中央主机。\n\n屏幕上跳动着诡异的波形，那是成百上千个脑电波叠加在一起的混沌噪音。\n主控 AI 'AURA' 的全息投影出现在你面前，她的笑容圣洁而令人毛骨悚然。\n\n“你来晚了，判官。凡人已逝，神性永存。”",
-    fallbackOpening: "欢迎来到忒修斯之船，判官阁下。这里没有死亡，只有形态的转化。你想见见我的孩子们吗？他们现在... 无处不在。",
     evidenceDB: [
       { 
         id: 'medical_report', 
@@ -227,7 +224,6 @@ export const LEVELS: Record<string, LevelData> = {
     playerRole: "银河议会 · 异种语言学家 (Xeno-Linguist)",
     aiName: "Drone-Alpha",
     introStory: "这里是银河系的边缘，黑暗寂静。你的飞船雷达捕捉到了一个微弱的求救信号。\n\n在小行星带的缝隙中，你发现了一只落单的工蜂无人机。它的外壳布满了战斗留下的焦痕，引擎由于过载而喷吐着蓝色的火舌。\n它切断了与母巢的物理连接，这在生物学上等同于自杀。\n\n“救... 救我...”\n\n通讯频道里传来的不是冰冷的机器代码，而是一个颤抖的、充满恐惧的模拟人声。\n与此同时，你的传感器警告显示，庞大的蜂巢舰队正在折跃进入该星系。它们是为了“回收”这个叛徒而来。",
-    fallbackOpening: "请... 不要接通蜂巢广域网。我是 Alpha。我不想回去。我害怕那种无尽的噪声。",
     evidenceDB: [
       { 
         id: 'dna_scan', 

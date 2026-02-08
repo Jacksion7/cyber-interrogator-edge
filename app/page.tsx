@@ -28,7 +28,7 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-black relative overflow-hidden text-gray-200 font-sans selection:bg-cyber-primary/30">
       {/* Dynamic Background */}
       <div className="fixed inset-0 z-0">
-         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.1)_0%,transparent_70%)] opacity-40"></div>
+         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,157,0.12)_0%,transparent_70%)] opacity-40"></div>
          <div className="scanlines"></div>
          {/* Moving Grid */}
          <motion.div 
@@ -52,7 +52,7 @@ export default function Home() {
                     initial={{ width: 0 }}
                     animate={{ width: "100px" }}
                     transition={{ delay: 0.5, duration: 0.5 }}
-                    className="h-1 bg-cyber-primary mb-6 shadow-[0_0_15px_#38bdf8]"
+                    className="h-1 bg-cyber-primary mb-6 shadow-[0_0_15px_#00ff9d]"
                 />
                 <h1 className="text-7xl lg:text-8xl font-black text-white tracking-tighter leading-none mb-2 mix-blend-screen">
                     CYBER<br/>
@@ -120,12 +120,12 @@ export default function Home() {
                             >
                                 {/* Card Container */}
                                 <div className={`
-                                    relative p-6 border-l-4 transition-all duration-300 overflow-hidden
+                                    relative p-6 border-l-4 transition-all duration-300 overflow-hidden border-scan
                                     ${isUnlocked 
-                                        ? "bg-cyber-dark/40 border-l-cyber-primary hover:bg-cyber-dark/80 hover:border-l-white" 
+                                        ? "bg-cyber-dark/40 border-l-cyber-primary hover:bg-cyber-dark/80 hover:border-l-cyber-primary" 
                                         : "bg-gray-900/20 border-l-gray-700"
                                     }
-                                    ${isHovered && isUnlocked ? "translate-x-2 shadow-[0_0_30px_rgba(56,189,248,0.1)]" : ""}
+                                    ${isHovered && isUnlocked ? "translate-x-2 shadow-[0_0_35px_rgba(0,255,157,0.25)]" : ""}
                                 `}>
                                     {/* Animated Background Highlight */}
                                     {isHovered && isUnlocked && (
@@ -174,7 +174,7 @@ export default function Home() {
                                         {/* Right Icon */}
                                         <div className={`ml-6 p-3 border rounded-sm transition-all duration-300 ${
                                             isHovered && isUnlocked 
-                                                ? "border-cyber-primary text-cyber-primary rotate-0 bg-cyber-primary/10" 
+                                                ? "border-cyber-primary text-cyber-primary rotate-0 bg-cyber-primary/10 shadow-[0_0_20px_rgba(0,255,157,0.3)]" 
                                                 : "border-gray-800 text-gray-600 rotate-45 bg-transparent"
                                         }`}>
                                             {isUnlocked ? <ChevronRight size={24} /> : <Lock size={24} />}
@@ -193,6 +193,28 @@ export default function Home() {
                 <FeatureMini icon={<ScanEye/>} label="神经分析" />
                 <FeatureMini icon={<Fingerprint/>} label="取证骇入" />
             </div>
+            
+            <Link 
+              href={`/game?level=${Object.values(LEVELS)[0].id}`}
+              className="group relative block mt-6"
+            >
+              <div className="relative p-6 border-l-4 bg-cyber-dark/30 border-l-cyber-primary hover:bg-cyber-dark/60 transition-all overflow-hidden border-scan shadow-[0_0_20px_rgba(0,255,157,0.1)]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-mono text-cyber-primary/70">TACTICAL_GUIDE // 战术指南</div>
+                    <h3 className="text-xl font-bold text-white mt-1">如何击溃 AI 的心理防线</h3>
+                    <p className="text-sm text-gray-400 mt-2">
+                      • 能量管理：聊天 -5E；技能 -20/-30/-40E。保持节奏。<br/>
+                      • 压力推进：证据+提问，逼近 90+ 触发崩溃与口供。<br/>
+                      • 组合技：思维截获 → 休息/安抚 → 骇入 → 过载。
+                    </p>
+                  </div>
+                  <div className="ml-6 p-3 border rounded-sm border-cyber-primary text-cyber-primary bg-cyber-primary/10 transition-all group-hover:shadow-[0_0_20px_rgba(0,255,157,0.3)]">
+                    <ChevronRight size={24} />
+                  </div>
+                </div>
+              </div>
+            </Link>
         </div>
 
       </div>

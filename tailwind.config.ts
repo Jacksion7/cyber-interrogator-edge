@@ -11,9 +11,9 @@ const config: Config = {
           black: "#020617", // Slate 950 (Deep Space Black)
           dark: "#0f172a",  // Slate 900 (Deep Navy)
           gray: "#1e293b",  // Slate 800 (Tech Gray)
-          primary: "#38bdf8", // Sky 400 (Holographic Blue)
+          primary: "#00ff9d", // Neon Green (Main highlight)
           secondary: "#f43f5e", // Rose 500 (Laser Red)
-          accent: "#94a3b8", // Slate 400 (Titanium Gray)
+          accent: "#38bdf8", // Cyan (Secondary highlight)
           muted: "#334155", // Slate 700
         },
       },

@@ -541,7 +541,7 @@ function GameInner() {
                   </div>
 
                   {/* Modal Content (Story) */}
-                  <div className="p-6 overflow-y-auto text-sm text-gray-300 font-mono leading-relaxed space-y-4 whitespace-pre-wrap">
+                  <div className="p-6 overflow-y-auto text-sm text-gray-300 font-sans leading-relaxed space-y-4 whitespace-pre-wrap">
                     {selectedEvidence.story}
                   </div>
 
@@ -590,7 +590,7 @@ function GameInner() {
                     </button>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-8 text-sm text-gray-300 font-mono">
+                  <div className="grid grid-cols-2 gap-8 text-sm text-gray-300 font-sans">
                     <div className="space-y-4">
                       <div>
                         <h3 className="text-cyber-accent font-bold mb-2 flex items-center gap-2">

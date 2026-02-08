@@ -184,6 +184,10 @@ function GameInner() {
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
   const [nodeViewMode, setNodeViewMode] = useState<'LIST' | 'TIMELINE' | 'TREE'>('LIST');
   const [timelineZoom, setTimelineZoom] = useState<number>(1);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [showNodeModal, setShowNodeModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Auto-scroll
   useEffect(() => {
@@ -355,6 +359,12 @@ function GameInner() {
           if (schema.branch?.nodeId) addNodeEntry({ id: schema.branch.nodeId, type: 'NODE', label: schema.branch?.title || schema.branch.nodeId });
           if (schema.suggestions?.[0]) { setObjective(schema.suggestions[0]); addSuggestionHistory(schema.suggestions[0]); }
           if (schema.confession === true) setObjective('结案：已承认');
+          if (schema.dialogue) {
+            cleanContent = schema.dialogue;
+          }
+          if (typeof schema.thought === 'string') {
+            thought = schema.thought;
+          }
         } catch (e) {
           if (process.env.NODE_ENV !== 'production') console.error("Failed to parse SCHEMA JSON:", e);
         }
@@ -371,7 +381,7 @@ function GameInner() {
       if (!deepScanActive) {
           aiMsg.thought = undefined;
       } else {
-          if (!aiMsg.thought) aiMsg.thought = "（目标思维高度加密，无法读取...）";
+          // 思维截获时如果没有提供思维，就不显示占位
       }
 
       setMessages(prev => [...prev, aiMsg]);
@@ -1073,7 +1083,7 @@ function GameInner() {
                 title="恢复：能量+20，压力-5"
               >
                   <Clock size={12} />
-                  休整 (+20E)
+                  休整 (+20E/-5S)
               </button>
               <button
                 type="button"
@@ -1083,7 +1093,7 @@ function GameInner() {
                 title="安抚：能量+50，压力-15"
               >
                   <Activity size={12} />
-                  安抚 (+50E)
+                  安抚 (+50E/-15S)
               </button>
             </div>
 
@@ -1107,25 +1117,47 @@ function GameInner() {
 
       {/* RIGHT: Skills & Status */}
       <div className="w-80 bg-cyber-black border-l border-cyber-gray p-4 flex flex-col gap-6 overflow-y-auto">
-        {/* Archive Management */}
         <section>
           <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
-            <FileText size={14} /> 档案管理
+            <FileText size={14} /> 档案检阅
           </h3>
-          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50 flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 transition-colors rounded-none"
+              onClick={() => setShowArchiveModal(true)}
+            >
+              进度档案
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-cyber-accent text-cyber-accent hover:bg-cyber-accent/10 transition-colors rounded-none"
+              onClick={() => setShowSnapshotModal(true)}
+            >
+              档案快照
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-cyber-secondary text-cyber-secondary hover:bg-cyber-secondary/10 transition-colors rounded-none"
+              onClick={() => setShowNodeModal(true)}
+            >
+              节点图谱
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-gray-500 text-gray-300 hover:bg-gray-600/10 transition-colors rounded-none"
+              onClick={() => setShowReviewModal(true)}
+            >
+              章节复核
+            </button>
+          </div>
+          <div className="mt-2">
             <button
               type="button"
               className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-cyber-primary text-cyber-primary hover:bg-cyber-primary/10 transition-colors rounded-none"
               onClick={handleResetChapter}
             >
               重置本章
-            </button>
-            <button
-              type="button"
-              className="px-2 py-1 text-[10px] font-mono bg-cyber-black border border-red-500 text-red-500 hover:bg-red-500/10 transition-colors rounded-none"
-              onClick={handleResetAll}
-            >
-              清空全局进度
             </button>
           </div>
         </section>
@@ -1388,47 +1420,30 @@ function GameInner() {
             </div>
           </div>
         </section>
-        {/* Combo Meter */}
         <section>
           <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
-            <Zap size={14} /> 连击与成就
+            <Zap size={14} /> 战术建议
           </h3>
-          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
-            <div className="flex items-center justify-between text-xs font-mono text-gray-300 mb-2">
-              <span>Combo Chain</span>
-              <span className="text-cyber-primary font-bold">{combo}x</span>
-            </div>
-            <div className="h-1 bg-cyber-black border border-cyber-gray">
-              <div className="h-full bg-cyber-primary" style={{ width: `${Math.min(100, combo * 12)}%` }} />
-            </div>
-            {achievements.length > 0 && (
-              <div className="mt-3 text-[10px] text-gray-400 font-mono">
-                {achievements.map((a) => (
-                  <div key={a} className="flex items-center gap-2 mb-1">
-                    <ShieldAlert size={10} className="text-cyber-secondary" />
-                    <span className="text-gray-300">{a}</span>
-                  </div>
+          {suggestions.length > 0 ? (
+            <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
+              <div className="flex flex-col gap-1">
+                {suggestions.map((s, i) => (
+                  <button 
+                    key={i}
+                    type="button"
+                    onClick={() => setInput(s)}
+                    className="text-left px-2 py-1 text-xs bg-cyber-black border border-cyber-gray hover:border-cyber-primary hover:text-cyber-primary transition-colors rounded-none"
+                  >
+                    {s}
+                  </button>
                 ))}
               </div>
-            )}
-            {suggestions.length > 0 && (
-              <div className="mt-3 border-t border-cyber-gray pt-2">
-                <div className="text-[10px] text-gray-500 font-mono mb-1">战术建议</div>
-                <div className="flex flex-col gap-1">
-                  {suggestions.map((s, i) => (
-                    <button 
-                      key={i}
-                      type="button"
-                      onClick={() => setInput(s)}
-                      className="text-left px-2 py-1 text-xs bg-cyber-black border border-cyber-gray hover:border-cyber-primary hover:text-cyber-primary transition-colors rounded-none"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50 text-[10px] text-gray-500 font-mono">
+              暂无建议
+            </div>
+          )}
         </section>
 
         {/* Skills */}
@@ -1520,6 +1535,197 @@ function GameInner() {
           </div>
         </section>
       </div>
+      
+      {showArchiveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-[680px] bg-cyber-black border border-cyber-gray p-4">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-xs font-mono text-gray-400">Dossier // 进度档案</div>
+              <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowArchiveModal(false)}>关闭</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 border border-cyber-gray bg-cyber-dark/50">
+                <div className="text-[10px] font-mono text-gray-500 mb-1">当前目标</div>
+                <div className="text-sm text-cyber-primary font-bold">{objective || '未设定'}</div>
+              </div>
+              <div className="p-3 border border-cyber-gray bg-cyber-dark/50">
+                <div className="text-[10px] font-mono text-gray-500 mb-1">建议履历</div>
+                <div className="text-[10px] text-gray-300">{suggestionHistory.join(' / ') || '无'}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSnapshotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-[780px] bg-cyber-black border border-cyber-gray p-4">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-xs font-mono text-gray-400">Dossier // 档案快照</div>
+              <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowSnapshotModal(false)}>关闭</button>
+            </div>
+            <div className="p-3 border border-cyber-gray bg-cyber-dark/50 max-h-[420px] overflow-y-auto">
+              {snapshots.length === 0 ? (
+                <div className="text-[10px] text-gray-500">暂无快照</div>
+              ) : (
+                <div className="space-y-2">
+                  {snapshots.map((s, i) => (
+                    <div key={i} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
+                      <div className="text-[10px] font-mono text-gray-300">{s.levelId} / {s.result} / {new Date(s.timestamp).toLocaleString()}</div>
+                      <button className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary rounded-none" onClick={() => {
+                        setArchiveView(s);
+                        setShowSnapshotModal(false);
+                      }}>载入到视图</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showNodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-[880px] bg-cyber-black border border-cyber-gray p-4">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-xs font-mono text-gray-400">Dossier // 节点图谱</div>
+              <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowNodeModal(false)}>关闭</button>
+            </div>
+            <div className="p-3 border border-cyber-gray bg-cyber-dark/50">
+              <div className="mb-3 flex items-center gap-2">
+                {['ALL','EVIDENCE','SKILL','NODE','SYSTEM'].map((k) => (
+                  <button key={k} className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeFilter === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")} onClick={() => setNodeFilter(k as any)}>{k}</button>
+                ))}
+                <div className="ml-auto flex items-center gap-2">
+                  {['LIST','TIMELINE','TREE'].map((k) => (
+                    <button key={k} className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeViewMode === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")} onClick={() => setNodeViewMode(k as any)}>{k}</button>
+                  ))}
+                </div>
+              </div>
+              {nodeViewMode === 'LIST' && (
+                <div className="space-y-2">
+                  {(nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter)).length === 0 && (
+                    <div className="text-[10px] text-gray-500">暂无节点</div>
+                  )}
+                  {nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter).map((n, i) => (
+                    <div key={`${n.id}-${n.ts}-${i}`} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
+                      <div className="flex items-center gap-2 text-[10px] font-mono">
+                        <span className={cn("px-1 border rounded-none", n.type === 'EVIDENCE' ? "border-cyber-primary text-cyber-primary" : n.type === 'SKILL' ? "border-cyber-secondary text-cyber-secondary" : n.type === 'NODE' ? "border-cyber-accent text-cyber-accent" : "border-gray-700 text-gray-400")}>{n.type}</span>
+                        <span className="text-gray-300">{n.label}</span>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-mono">{new Date(n.ts).toLocaleTimeString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {nodeViewMode === 'TIMELINE' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-gray-500 font-mono">缩放</span>
+                    <input type="range" min={0.6} max={2} step={0.1} value={timelineZoom} onChange={(e) => setTimelineZoom(parseFloat(e.target.value))} />
+                  </div>
+                  <div className="overflow-x-auto">
+                    {(() => {
+                      const filtered = nodeGraph.filter(n => nodeFilter === 'ALL' ? true : n.type === nodeFilter);
+                      if (filtered.length === 0) return <div className="text-[10px] text-gray-500">暂无节点</div>;
+                      const minTs = Math.min(...filtered.map(n => n.ts));
+                      const maxTs = Math.max(...filtered.map(n => n.ts));
+                      const width = Math.max(600, (maxTs - minTs) / 1000 * 60) * timelineZoom;
+                      const height = 160;
+                      const colorFor = (t: string) => t === 'EVIDENCE' ? '#38bdf8' : t === 'SKILL' ? '#22c55e' : t === 'NODE' ? '#0ea5e9' : '#64748b';
+                      const yFor = (t: string) => t === 'EVIDENCE' ? 40 : t === 'SKILL' ? 80 : t === 'NODE' ? 120 : 100;
+                      const xFor = (ts: number) => {
+                        const span = maxTs - minTs || 1;
+                        return 40 + ((ts - minTs) / span) * (width - 80);
+                      };
+                      return (
+                        <svg width={width} height={height} className="bg-cyber-black border border-cyber-gray">
+                          <line x1="20" y1="20" x2={width-20} y2="20" stroke="#334155" strokeWidth="1"/>
+                          <line x1="20" y1="60" x2={width-20} y2="60" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
+                          <line x1="20" y1="100" x2={width-20} y2="100" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
+                          <line x1="20" y1="140" x2={width-20} y2="140" stroke="#334155" strokeWidth="1" strokeDasharray="2 4"/>
+                          {filtered.map((n, i) => {
+                            const x = xFor(n.ts);
+                            const y = yFor(n.type);
+                            return (
+                              <g key={`${n.id}-${n.ts}-${i}`}>
+                                {i > 0 && (
+                                  <line x1={xFor(filtered[i-1].ts)} y1={yFor(filtered[i-1].type)} x2={x} y2={y} stroke="#475569" strokeWidth="1"/>
+                                )}
+                                <circle cx={x} cy={y} r={6} fill={colorFor(n.type)} />
+                                <text x={x+8} y={y+4} fontSize="10" fill="#cbd5e1" className="font-mono">{n.label}</text>
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+              {nodeViewMode === 'TREE' && (
+                <div className="space-y-2 overflow-x-auto">
+                  {(() => {
+                    const chains = currentLevel.evidenceChain || [];
+                    if (chains.length === 0) return <div className="text-[10px] text-gray-500">暂无证据树</div>;
+                    const width = Math.max(600, chains.reduce((acc, c) => Math.max(acc, c.length), 0) * 180);
+                    const height = Math.max(140, chains.length * 80);
+                    return (
+                      <svg width={width} height={height} className="bg-cyber-black border border-cyber-gray">
+                        {chains.map((chain, row) => {
+                          return chain.map((id, idx) => {
+                            const x = 60 + idx * 180;
+                            const y = 40 + row * 80;
+                            const unlocked = evidenceFound.includes(id);
+                            const item = EVIDENCE_DB.find(e => e.id === id);
+                            const nextId = chain[idx+1];
+                            return (
+                              <g key={`${id}-${row}-${idx}`}>
+                                <rect x={x-40} y={y-18} width={120} height={36} fill={unlocked ? 'rgba(56,189,248,0.15)' : 'rgba(148,163,184,0.15)'} stroke={unlocked ? '#38bdf8' : '#64748b'} />
+                                <text x={x-34} y={y+4} fontSize="10" fill={unlocked ? '#38bdf8' : '#94a3b8'} className="font-mono">{item?.name || id}</text>
+                                {nextId && (
+                                  <g>
+                                    <line x1={x+80} y1={y} x2={x+180} y2={y} stroke="#334155" strokeWidth="1"/>
+                                    <polygon points={`${x+180},${y} ${x+172},${y-4} ${x+172},${y+4}`} fill="#334155" />
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          });
+                        })}
+                      </svg>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {showReviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-[720px] bg-cyber-black border border-cyber-gray p-4">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-xs font-mono text-gray-400">Dossier // 章节复核</div>
+              <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowReviewModal(false)}>关闭</button>
+            </div>
+            <div className="p-3 border border-cyber-gray bg-cyber-dark/50">
+              <div className="text-[10px] font-mono text-gray-500 mb-2">关键证据</div>
+              <div className="space-y-2">
+                {(currentLevel.keyEvidence || []).map((id) => (
+                  <div key={id} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
+                    <span className={cn("text-[10px] font-mono", evidenceFound.includes(id) ? "text-cyber-primary" : "text-red-400")}>
+                      {EVIDENCE_DB.find(e => e.id === id)?.name || id}
+                    </span>
+                    <span className={cn("text-[10px] font-mono", evidenceFound.includes(id) ? "text-cyber-primary" : "text-red-400")}>
+                      {evidenceFound.includes(id) ? "已解锁" : "未解锁"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

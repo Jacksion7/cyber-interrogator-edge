@@ -96,7 +96,9 @@ export async function POST(req: Request) {
           title: levelData.title 
         },
         suggestions: getSuggestions(levelId, lastMessage, stress),
-        flags: []
+        flags: [],
+        dialogue: reply,
+        intercepted: "状态已更新"
       };
       const enriched = `${reply}\n\n:::SCHEMA\n${JSON.stringify(schema)}\n:::`;
       return new Response(JSON.stringify({ content: enriched }), {
@@ -144,7 +146,9 @@ export async function POST(req: Request) {
           : levelId === 'level-2'
           ? ["质疑上传的同意权", "追问痛苦与燃料", "提出伦理审查"]
           : ["询问蜂巢痛苦", "核对基因异常", "设法解除武器系统"],
-        flags: []
+        flags: [],
+        dialogue: responseText,
+        intercepted: thought
       };
       const fullResponse = `${responseText}\n\n:::STATUS\n{"stress": ${stress}, "thought": "${thought}", "confession": ${confession}}\n:::`;
       

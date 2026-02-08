@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function Home() {
   const [completedLevels, setCompletedLevels] = useState<string[]>([]);
   const [hoveredLevel, setHoveredLevel] = useState<string | null>(null);
+  const [feature, setFeature] = useState<null | "AI" | "SCAN" | "HACK" | "GUIDE">(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('completed_levels');
@@ -188,10 +189,11 @@ export default function Home() {
             </div>
 
              {/* Features Grid - Small */}
-            <div className="grid grid-cols-3 gap-4 mt-8 border-t border-gray-800 pt-6">
-                <FeatureMini icon={<Bot/>} label="自适应 AI" />
-                <FeatureMini icon={<ScanEye/>} label="神经分析" />
-                <FeatureMini icon={<Fingerprint/>} label="取证骇入" />
+            <div className="grid grid-cols-4 gap-4 mt-8 border-t border-gray-800 pt-6">
+                <FeatureMini icon={<Bot/>} label="自适应 AI" onClick={() => setFeature("AI")} />
+                <FeatureMini icon={<ScanEye/>} label="神经分析" onClick={() => setFeature("SCAN")} />
+                <FeatureMini icon={<Fingerprint/>} label="取证骇入" onClick={() => setFeature("HACK")} />
+                <FeatureMini icon={<Play/>} label="战术指南" onClick={() => setFeature("GUIDE")} />
             </div>
             
             <Link 
@@ -199,6 +201,18 @@ export default function Home() {
               className="group relative block mt-6"
             >
               <div className="relative p-6 border-l-4 bg-cyber-dark/30 border-l-cyber-primary hover:bg-cyber-dark/60 transition-all overflow-hidden border-scan shadow-[0_0_20px_rgba(0,255,157,0.1)]">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1.2 }}
+                  className="absolute inset-0 pointer-events-none"
+                >
+                  <motion.div 
+                    animate={{ x: ["-20%", "120%"] }}
+                    transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
+                    className="h-full w-24 bg-gradient-to-r from-transparent via-cyber-primary/10 to-transparent"
+                  />
+                </motion.div>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs font-mono text-cyber-primary/70">TACTICAL_GUIDE // 战术指南</div>
@@ -209,12 +223,84 @@ export default function Home() {
                       • 组合技：思维截获 → 休息/安抚 → 骇入 → 过载。
                     </p>
                   </div>
-                  <div className="ml-6 p-3 border rounded-sm border-cyber-primary text-cyber-primary bg-cyber-primary/10 transition-all group-hover:shadow-[0_0_20px_rgba(0,255,157,0.3)]">
+                  <motion.div 
+                    animate={{ y: [0, -2, 0] }}
+                    transition={{ repeat: Infinity, duration: 1.6 }}
+                    className="ml-6 p-3 border rounded-sm border-cyber-primary text-cyber-primary bg-cyber-primary/10 transition-all group-hover:shadow-[0_0_20px_rgba(0,255,157,0.3)]"
+                  >
                     <ChevronRight size={24} />
-                  </div>
+                  </motion.div>
                 </div>
               </div>
             </Link>
+            
+            <AnimatePresence>
+              {feature && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+                  onClick={() => setFeature(null)}
+                >
+                  <motion.div 
+                    initial={{ scale: 0.95, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.95, y: 20 }}
+                    className="bg-cyber-black border border-cyber-primary/40 p-6 rounded-xl max-w-xl w-full shadow-[0_0_40px_rgba(0,255,157,0.2)]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-xs font-mono text-cyber-primary/70">
+                        {feature === "AI" && "ADAPTIVE_AI // 自适应 AI"}
+                        {feature === "SCAN" && "NEURAL_ANALYSIS // 神经分析"}
+                        {feature === "HACK" && "EVIDENCE_HACK // 取证骇入"}
+                        {feature === "GUIDE" && "TACTICAL_GUIDE // 战术指南"}
+                      </div>
+                      <button className="text-xs font-mono text-gray-500 border border-gray-700 px-2 py-1 rounded-none hover:text-white" onClick={() => setFeature(null)}>关闭</button>
+                    </div>
+                    <div className="space-y-3 text-sm text-gray-300 font-sans">
+                      {feature === "AI" && (
+                        <>
+                          <div className="text-white font-bold">自适应 AI</div>
+                          <div className="text-gray-400">根据玩家策略动态调整心理防线，维持节奏与对抗强度。</div>
+                          <div className="text-[12px] font-mono text-gray-500">进入关卡以体验自适应行为与压力阈值。</div>
+                        </>
+                      )}
+                      {feature === "SCAN" && (
+                        <>
+                          <div className="text-white font-bold">神经分析</div>
+                          <div className="text-gray-400">解锁思维截获，窥视真实想法，寻找逻辑漏洞。</div>
+                          <div className="text-[12px] font-mono text-gray-500">在关卡中使用“思维截获”技能开始分析。</div>
+                        </>
+                      )}
+                      {feature === "HACK" && (
+                        <>
+                          <div className="text-white font-bold">取证骇入</div>
+                          <div className="text-gray-400">数据库强制解锁关键证据，补全证据链。</div>
+                          <div className="text-[12px] font-mono text-gray-500">在关卡中使用“数据库骇入”技能暴力开路。</div>
+                        </>
+                      )}
+                      {feature === "GUIDE" && (
+                        <>
+                          <div className="text-white font-bold">战术指南</div>
+                          <div className="text-gray-400">掌握能量、压力与组合技的时机，形成节奏压制。</div>
+                        </>
+                      )}
+                    </div>
+                    <div className="mt-5 flex items-center justify-end gap-2">
+                      <Link 
+                        href={`/game?level=${Object.values(LEVELS)[0].id}`}
+                        className="px-4 py-2 bg-cyber-primary text-black font-bold text-sm rounded border border-cyber-primary hover:bg-cyber-primary/80 transition-colors"
+                        onClick={() => setFeature(null)}
+                      >
+                        立即进入
+                      </Link>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
         </div>
 
       </div>
@@ -222,13 +308,22 @@ export default function Home() {
   );
 }
 
-function FeatureMini({ icon, label }: { icon: React.ReactNode, label: string }) {
+function FeatureMini({ icon, label, onClick }: { icon: React.ReactNode, label: string, onClick?: () => void }) {
     return (
-        <div className="flex flex-col items-center gap-2 text-gray-500 hover:text-cyber-primary transition-colors cursor-default group">
-            <div className="p-2 rounded-full bg-gray-900 group-hover:bg-cyber-primary/20 transition-colors">
+        <motion.button 
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          onClick={onClick}
+          className="flex flex-col items-center gap-2 text-gray-500 hover:text-cyber-primary transition-colors cursor-pointer group"
+        >
+            <motion.div 
+              initial={{ rotate: 0 }}
+              whileHover={{ rotate: -5 }}
+              className="p-2 rounded-full bg-gray-900 group-hover:bg-cyber-primary/20 transition-colors"
+            >
                 {icon}
-            </div>
+            </motion.div>
             <span className="text-[10px] uppercase tracking-wider font-mono">{label}</span>
-        </div>
+        </motion.button>
     )
 }

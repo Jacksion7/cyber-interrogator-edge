@@ -1245,37 +1245,6 @@ function GameInner() {
           </div>
         </section>
 
-        <section className="mt-2">
-          <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
-            <FileText size={14} /> 进度档案
-          </h3>
-          <div className="p-3 border border-cyber-gray rounded-md bg-cyber-dark/50">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-mono text-cyber-primary">{objective ? `当前目标：${objective}` : '当前目标：无'}</div>
-              <div className="text-[10px] text-gray-500 font-mono">证据：{evidenceFound.length}/{EVIDENCE_DB.length}</div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-[10px] font-mono text-gray-400 mb-1">关键节点</div>
-                <div className="max-h-32 overflow-auto pr-1">
-                  {decisions.length === 0 && <div className="text-[10px] text-gray-500">暂无记录</div>}
-                  {Array.from(new Set(decisions)).map((d, idx) => (
-                    <div key={`${d}-${idx}`} className="text-[10px] text-gray-300 border-b border-cyber-gray/50 py-1">{d}</div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] font-mono text-gray-400 mb-1">建议履历</div>
-                <div className="max-h-32 overflow-auto pr-1">
-                  {suggestionHistory.length === 0 && <div className="text-[10px] text-gray-500">暂无建议记录</div>}
-                  {Array.from(new Set(suggestionHistory)).map((s, idx) => (
-                    <div key={`${s}-${idx}`} className="text-[10px] text-gray-300 border-b border-cyber-gray/50 py-1">{s}</div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
         <section>
           <h3 className="text-xs font-bold text-gray-500 mb-3 flex items-center gap-2 font-mono uppercase tracking-wider">
             <Zap size={14} /> 战术建议

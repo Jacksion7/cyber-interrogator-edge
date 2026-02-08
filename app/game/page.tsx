@@ -468,7 +468,7 @@ function GameInner() {
                 <motion.div 
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="max-w-3xl w-full border border-cyber-primary/30 bg-cyber-black/90 p-10 text-center relative overflow-hidden shadow-[0_0_100px_rgba(0,255,157,0.1)] rounded-sm"
+                    className="max-w-3xl w-full border border-cyber-primary/30 bg-cyber-black/90 p-10 text-center relative shadow-[0_0_100px_rgba(0,255,157,0.1)] rounded-sm"
                 >
                     {/* Decorative Corners */}
                     <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyber-primary"></div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bot, Fingerprint, ScanEye, Lock, Play, RotateCcw, ChevronRight, Terminal as TerminalIcon } from "lucide-react";
+import { Bot, Fingerprint, ScanEye, Lock, Play, RotateCcw, ChevronRight, Terminal as TerminalIcon, Database, ShieldAlert } from "lucide-react";
 import { LEVELS } from "@/lib/levels";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +10,8 @@ export default function Home() {
   const [completedLevels, setCompletedLevels] = useState<string[]>([]);
   const [hoveredLevel, setHoveredLevel] = useState<string | null>(null);
   const [feature, setFeature] = useState<null | "AI" | "SCAN" | "HACK" | "GUIDE">(null);
+  const [booting, setBooting] = useState(true);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const saved = localStorage.getItem('completed_levels');
@@ -17,6 +19,16 @@ export default function Home() {
       setCompletedLevels(JSON.parse(saved));
     }
   }, []);
+
+  useEffect(() => {
+    if (!booting) return;
+    const interval = setInterval(() => setProgress(p => Math.min(p + 3, 100)), 50);
+    const timer = setTimeout(() => setBooting(false), 2600);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, [booting]);
 
   const resetProgress = () => {
       if (confirm("确定要重置所有游戏进度吗？这将锁定所有已完成的关卡。")) {
@@ -39,20 +51,85 @@ export default function Home() {
          />
       </div>
       
-      <div className="z-10 w-full max-w-7xl px-8 flex flex-col lg:flex-row gap-12 items-center lg:items-start h-full py-12">
+      <AnimatePresence>
+        {booting && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm"
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,157,0.10)_0%,transparent_70%)]"></div>
+            <div className="h-full w-full flex items-center justify-center">
+              <motion.div 
+                initial={{ scale: 0.96, y: 10 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.96, y: 10 }}
+                transition={{ duration: 0.4 }}
+                className="flex flex-col items-center"
+              >
+                <div className="text-xs font-mono text-cyber-primary/70 tracking-[0.35em] uppercase">BOOT SEQUENCE</div>
+                <div className="mt-1 text-[10px] font-mono text-gray-500 tracking-[0.3em]">系统初始化</div>
+                <div className="mt-8 relative">
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+                    className="w-48 h-48 rounded-full border-2 border-cyber-primary/30 shadow-[0_0_25px_rgba(0,255,157,0.2)]"
+                  />
+                  <motion.div 
+                    animate={{ rotate: -360 }}
+                    transition={{ repeat: Infinity, duration: 6, ease: "linear" }}
+                    className="absolute inset-4 rounded-full border border-dashed border-cyber-primary/40"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-4xl font-black text-white tracking-[0.2em]">{Math.min(progress, 100)}%</div>
+                  </div>
+                </div>
+                <div className="mt-6 w-64 h-2 bg-gray-900 rounded overflow-hidden border border-cyber-primary/30">
+                  <div 
+                    className="h-full bg-cyber-primary"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <div className="mt-2 text-[10px] font-mono text-cyber-primary/70">NEURAL LINK INITIALIZING</div>
+                <div className="mt-8 w-72 space-y-2">
+                  <motion.div 
+                    animate={{ x: ["-10%", "110%"] }}
+                    transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+                    className="h-6 bg-gradient-to-r from-transparent via-cyber-primary/10 to-transparent"
+                  />
+                  <motion.div 
+                    animate={{ x: ["110%", "-10%"] }}
+                    transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+                    className="h-6 bg-gradient-to-r from-transparent via-cyber-accent/10 to-transparent"
+                  />
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: booting ? 0 : 1 }}
+        transition={{ delay: booting ? 0 : 0.1, duration: 0.8 }}
+        className="z-10 w-full max-w-7xl px-8 flex flex-col lg:flex-row gap-12 items-center lg:items-start h-full py-12"
+      >
         
         {/* Left Column: Title & Status */}
         <motion.div 
             initial={{ x: -50, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
             className="flex-1 flex flex-col gap-8 text-left relative"
         >
             <div className="relative">
                 <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: "100px" }}
-                    transition={{ delay: 0.5, duration: 0.5 }}
+                    transition={{ delay: 0.6, duration: 0.5 }}
                     className="h-1 bg-cyber-primary mb-6 shadow-[0_0_15px_#00ff9d]"
                 />
                 <h1 className="text-7xl lg:text-8xl font-black text-white tracking-tighter leading-none mb-2 mix-blend-screen">
@@ -91,7 +168,7 @@ export default function Home() {
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
+                transition={{ delay: 0.4 }}
                 className="text-xs font-mono text-gray-500 mb-2 flex justify-between items-end border-b border-gray-800 pb-2"
             >
                 <span>AVAILABLE_CASES // 待处理案件</span>
@@ -109,7 +186,7 @@ export default function Home() {
                             key={level.id}
                             initial={{ x: 50, opacity: 0 }}
                             animate={{ x: 0, opacity: 1 }}
-                            transition={{ delay: 0.1 * index + 0.5 }}
+                            transition={{ delay: 0.1 * index + 0.6 }}
                         >
                             <Link 
                                 href={isUnlocked ? `/game?level=${level.id}` : "#"}
@@ -189,50 +266,17 @@ export default function Home() {
             </div>
 
              {/* Features Grid - Small */}
-            <div className="grid grid-cols-4 gap-4 mt-8 border-t border-gray-800 pt-6">
+            <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.1 * Object.keys(LEVELS).length + 0.6 }}
+                className="grid grid-cols-4 gap-4 mt-8 border-t border-gray-800 pt-6"
+            >
                 <FeatureMini icon={<Bot/>} label="自适应 AI" onClick={() => setFeature("AI")} />
                 <FeatureMini icon={<ScanEye/>} label="神经分析" onClick={() => setFeature("SCAN")} />
                 <FeatureMini icon={<Fingerprint/>} label="取证骇入" onClick={() => setFeature("HACK")} />
                 <FeatureMini icon={<Play/>} label="战术指南" onClick={() => setFeature("GUIDE")} />
-            </div>
-            
-            <Link 
-              href={`/game?level=${Object.values(LEVELS)[0].id}`}
-              className="group relative block mt-6"
-            >
-              <div className="relative p-6 border-l-4 bg-cyber-dark/30 border-l-cyber-primary hover:bg-cyber-dark/60 transition-all overflow-hidden border-scan shadow-[0_0_20px_rgba(0,255,157,0.1)]">
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 1.2 }}
-                  className="absolute inset-0 pointer-events-none"
-                >
-                  <motion.div 
-                    animate={{ x: ["-20%", "120%"] }}
-                    transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
-                    className="h-full w-24 bg-gradient-to-r from-transparent via-cyber-primary/10 to-transparent"
-                  />
-                </motion.div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs font-mono text-cyber-primary/70">TACTICAL_GUIDE // 战术指南</div>
-                    <h3 className="text-xl font-bold text-white mt-1">如何击溃 AI 的心理防线</h3>
-                    <p className="text-sm text-gray-400 mt-2">
-                      • 能量管理：聊天 -5E；技能 -20/-30/-40E。保持节奏。<br/>
-                      • 压力推进：证据+提问，逼近 90+ 触发崩溃与口供。<br/>
-                      • 组合技：思维截获 → 休息/安抚 → 骇入 → 过载。
-                    </p>
-                  </div>
-                  <motion.div 
-                    animate={{ y: [0, -2, 0] }}
-                    transition={{ repeat: Infinity, duration: 1.6 }}
-                    className="ml-6 p-3 border rounded-sm border-cyber-primary text-cyber-primary bg-cyber-primary/10 transition-all group-hover:shadow-[0_0_20px_rgba(0,255,157,0.3)]"
-                  >
-                    <ChevronRight size={24} />
-                  </motion.div>
-                </div>
-              </div>
-            </Link>
+            </motion.div>
             
             <AnimatePresence>
               {feature && (
@@ -259,11 +303,27 @@ export default function Home() {
                       </div>
                       <button className="text-xs font-mono text-gray-500 border border-gray-700 px-2 py-1 rounded-none hover:text-white" onClick={() => setFeature(null)}>关闭</button>
                     </div>
-                    <div className="space-y-3 text-sm text-gray-300 font-sans">
+                    <div className="space-y-4 text-sm text-gray-300 font-sans">
                       {feature === "AI" && (
                         <>
                           <div className="text-white font-bold">自适应 AI</div>
                           <div className="text-gray-400">根据玩家策略动态调整心理防线，维持节奏与对抗强度。</div>
+                          
+                          {/* 技能预览区域 */}
+                          <div className="mt-4 p-3 border border-cyber-primary/20 bg-cyber-dark/30 rounded">
+                            <div className="text-xs font-mono text-cyber-primary/70 mb-2">技能预览</div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded bg-cyber-primary/20 flex items-center justify-center text-cyber-primary border border-cyber-primary/30">
+                                <Bot size={16} />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-xs text-white font-bold">自适应响应</div>
+                                <div className="text-[10px] text-gray-400">动态调整对话策略与压力阈值</div>
+                              </div>
+                              <div className="text-[10px] font-mono bg-cyber-primary/10 text-cyber-primary px-2 py-1 rounded border border-cyber-primary/30">被动</div>
+                            </div>
+                          </div>
+                          
                           <div className="text-[12px] font-mono text-gray-500">进入关卡以体验自适应行为与压力阈值。</div>
                         </>
                       )}
@@ -271,6 +331,22 @@ export default function Home() {
                         <>
                           <div className="text-white font-bold">神经分析</div>
                           <div className="text-gray-400">解锁思维截获，窥视真实想法，寻找逻辑漏洞。</div>
+                          
+                          {/* 技能预览区域 */}
+                          <div className="mt-4 p-3 border border-cyber-accent/20 bg-cyber-dark/30 rounded">
+                            <div className="text-xs font-mono text-cyber-accent/70 mb-2">技能预览</div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded bg-cyber-accent/20 flex items-center justify-center text-cyber-accent border border-cyber-accent/30">
+                                <ScanEye size={16} />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-xs text-white font-bold">思维截获</div>
+                                <div className="text-[10px] text-gray-400">读取目标真实想法与逻辑漏洞</div>
+                              </div>
+                              <div className="text-[10px] font-mono bg-cyber-accent/10 text-cyber-accent px-2 py-1 rounded border border-cyber-accent/30">-20E</div>
+                            </div>
+                          </div>
+                          
                           <div className="text-[12px] font-mono text-gray-500">在关卡中使用“思维截获”技能开始分析。</div>
                         </>
                       )}
@@ -278,6 +354,22 @@ export default function Home() {
                         <>
                           <div className="text-white font-bold">取证骇入</div>
                           <div className="text-gray-400">数据库强制解锁关键证据，补全证据链。</div>
+                          
+                          {/* 技能预览区域 */}
+                          <div className="mt-4 p-3 border border-cyber-primary/20 bg-cyber-dark/30 rounded">
+                            <div className="text-xs font-mono text-cyber-primary/70 mb-2">技能预览</div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded bg-cyber-primary/20 flex items-center justify-center text-cyber-primary border border-cyber-primary/30">
+                                <Database size={16} />
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-xs text-white font-bold">数据库骇入</div>
+                                <div className="text-[10px] text-gray-400">暴力解锁加密证据档案</div>
+                              </div>
+                              <div className="text-[10px] font-mono bg-cyber-primary/10 text-cyber-primary px-2 py-1 rounded border border-cyber-primary/30">-30E</div>
+                            </div>
+                          </div>
+                          
                           <div className="text-[12px] font-mono text-gray-500">在关卡中使用“数据库骇入”技能暴力开路。</div>
                         </>
                       )}
@@ -285,6 +377,25 @@ export default function Home() {
                         <>
                           <div className="text-white font-bold">战术指南</div>
                           <div className="text-gray-400">掌握能量、压力与组合技的时机，形成节奏压制。</div>
+                          
+                          {/* 技能预览区域 */}
+                          <div className="mt-4 p-3 border border-cyber-secondary/20 bg-cyber-dark/30 rounded">
+                            <div className="text-xs font-mono text-cyber-secondary/70 mb-2">组合技预览</div>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded bg-cyber-accent/20 flex items-center justify-center text-cyber-accent border border-cyber-accent/30 text-xs">1</div>
+                                <div className="text-[10px] text-gray-400">思维截获 → 发现漏洞</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded bg-cyber-primary/20 flex items-center justify-center text-cyber-primary border border-cyber-primary/30 text-xs">2</div>
+                                <div className="text-[10px] text-gray-400">数据库骇入 → 解锁证据</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded bg-cyber-secondary/20 flex items-center justify-center text-cyber-secondary border border-cyber-secondary/30 text-xs">3</div>
+                                <div className="text-[10px] text-gray-400">逻辑过载 → 强制崩溃</div>
+                              </div>
+                            </div>
+                          </div>
                         </>
                       )}
                     </div>

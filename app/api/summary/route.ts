@@ -28,9 +28,9 @@ export async function POST(req: Request) {
     `;
 
     // Filter messages to reduce token usage, keeping system actions and user/assistant exchanges
-    const relevantMessages = messages.filter((m: any) => 
+    const relevantMessages = messages.filter((m: { role: string; content: string }) => 
       m.role !== 'system' || m.content.includes(">>>") || m.content.includes("SYSTEM INJECTION")
-    ).map((m: any) => `${m.role === 'user' ? '调查员' : 'AI嫌疑人'}: ${m.content}`).join("\n");
+    ).map((m: { role: string; content: string }) => `${m.role === 'user' ? '调查员' : 'AI嫌疑人'}: ${m.content}`).join("\n");
 
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',

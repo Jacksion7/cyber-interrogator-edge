@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bot, Fingerprint, ScanEye, Lock, Play, RotateCcw, ChevronRight, Terminal as TerminalIcon, Database, ShieldAlert } from "lucide-react";
+import { Bot, Fingerprint, ScanEye, Lock, Play, RotateCcw, ChevronRight, Database } from "lucide-react";
 import { LEVELS } from "@/lib/levels";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -51,13 +51,14 @@ export default function Home() {
          />
       </div>
       
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {booting && (
           <motion.div
+            key="booting"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
             className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm"
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,157,0.10)_0%,transparent_70%)]"></div>
@@ -65,8 +66,8 @@ export default function Home() {
               <motion.div 
                 initial={{ scale: 0.96, y: 10 }}
                 animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.96, y: 10 }}
-                transition={{ duration: 0.4 }}
+                exit={{ scale: 0.9, y: -20, opacity: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
                 className="flex flex-col items-center"
               >
                 <div className="text-xs font-mono text-cyber-primary/70 tracking-[0.35em] uppercase">BOOT SEQUENCE</div>
@@ -112,24 +113,25 @@ export default function Home() {
       </AnimatePresence>
       
       <motion.div 
+        key="main-content"
         initial={{ opacity: 0 }}
         animate={{ opacity: booting ? 0 : 1 }}
-        transition={{ delay: booting ? 0 : 0.1, duration: 0.8 }}
+        transition={{ delay: booting ? 0 : 0.4, duration: 0.8, ease: "easeOut" }}
         className="z-10 w-full max-w-7xl px-8 flex flex-col lg:flex-row gap-12 items-center lg:items-start h-full py-12"
       >
         
         {/* Left Column: Title & Status */}
         <motion.div 
-            initial={{ x: -50, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+            initial={{ x: -80, opacity: 0 }}
+            animate={{ x: booting ? -80 : 0, opacity: booting ? 0 : 1 }}
+            transition={{ duration: 0.9, delay: booting ? 0 : 0.6, ease: "easeOut" }}
             className="flex-1 flex flex-col gap-8 text-left relative"
         >
             <div className="relative">
                 <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: "100px" }}
-                    transition={{ delay: 0.6, duration: 0.5 }}
+                    animate={{ width: booting ? 0 : "100px" }}
+                    transition={{ delay: booting ? 0 : 0.9, duration: 0.6, ease: "easeOut" }}
                     className="h-1 bg-cyber-primary mb-6 shadow-[0_0_15px_#00ff9d]"
                 />
                 <h1 className="text-7xl lg:text-8xl font-black text-white tracking-tighter leading-none mb-2 mix-blend-screen">
@@ -166,9 +168,9 @@ export default function Home() {
         {/* Right Column: Level Selector (Dossier Style) */}
         <div className="flex-1 w-full max-w-2xl flex flex-col gap-6">
             <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
+                initial={{ x: 80, opacity: 0 }}
+                animate={{ x: booting ? 80 : 0, opacity: booting ? 0 : 1 }}
+                transition={{ duration: 0.9, delay: booting ? 0 : 0.8, ease: "easeOut" }}
                 className="text-xs font-mono text-gray-500 mb-2 flex justify-between items-end border-b border-gray-800 pb-2"
             >
                 <span>AVAILABLE_CASES // 待处理案件</span>
@@ -184,9 +186,9 @@ export default function Home() {
                     return (
                         <motion.div
                             key={level.id}
-                            initial={{ x: 50, opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            transition={{ delay: 0.1 * index + 0.6 }}
+                            initial={{ x: 100, opacity: 0 }}
+                            animate={{ x: booting ? 100 : 0, opacity: booting ? 0 : 1 }}
+                            transition={{ duration: 0.8, delay: booting ? 0 : (0.1 * index + 1.0), ease: "easeOut" }}
                         >
                             <Link 
                                 href={isUnlocked ? `/game?level=${level.id}` : "#"}
@@ -267,9 +269,9 @@ export default function Home() {
 
              {/* Features Grid - Small */}
             <motion.div
-                initial={{ x: 50, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.1 * Object.keys(LEVELS).length + 0.6 }}
+                initial={{ x: 100, opacity: 0 }}
+                animate={{ x: booting ? 100 : 0, opacity: booting ? 0 : 1 }}
+                transition={{ duration: 0.8, delay: booting ? 0 : (0.1 * Object.keys(LEVELS).length + 1.2), ease: "easeOut" }}
                 className="grid grid-cols-4 gap-4 mt-8 border-t border-gray-800 pt-6"
             >
                 <FeatureMini icon={<Bot/>} label="自适应 AI" onClick={() => setFeature("AI")} />
@@ -414,7 +416,7 @@ export default function Home() {
             </AnimatePresence>
         </div>
 
-      </div>
+      </motion.div>
     </main>
   );
 }

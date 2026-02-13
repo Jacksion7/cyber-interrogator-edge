@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useGameStore } from "@/lib/store";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Send, Cpu, Activity, Database, AlertTriangle, FileText, 
-  Lock, Unlock, Terminal, Wifi, WifiOff, Clock, Zap, Eye, HelpCircle, MessageSquare, BookOpen, User, ShieldAlert
+import {
+  Send, Cpu, Activity, Database, AlertTriangle, FileText,
+  Lock, Unlock, Terminal, Wifi, Clock, Zap, Eye, HelpCircle, MessageSquare, BookOpen, User, ShieldAlert
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
@@ -18,8 +18,10 @@ interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  thought?: string; // New: Hidden thought revealed by Deep Scan
+  thought?: string; // Hidden thought revealed by Deep Scan
+  thoughtRevealed?: boolean; // Whether the thought has been revealed by clicking Deep Scan
 }
+
 
 // --- Typewriter Component ---
 function Typewriter({ text, speed = 30, onComplete }: { text: string, speed?: number, onComplete?: () => void }) {
@@ -28,11 +30,11 @@ function Typewriter({ text, speed = 30, onComplete }: { text: string, speed?: nu
   const segmentsRef = useRef<string[]>(
     (() => {
       try {
-        // @ts-ignore
-        const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text);
+        const seg = (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter && new (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter!(undefined, { granularity: 'grapheme' }).segment(text);
         const out: string[] = [];
-        // @ts-ignore
-        for (const s of seg) out.push(s.segment);
+        if (seg) {
+          for (const s of seg) out.push(s.segment);
+        }
         return out.length ? out : Array.from(text);
       } catch {
         return Array.from(text);
@@ -42,11 +44,11 @@ function Typewriter({ text, speed = 30, onComplete }: { text: string, speed?: nu
 
   useEffect(() => {
     try {
-      // @ts-ignore
-      const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text);
+      const seg = (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter && new (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter!(undefined, { granularity: 'grapheme' }).segment(text);
       const out: string[] = [];
-      // @ts-ignore
-      for (const s of seg) out.push(s.segment);
+      if (seg) {
+        for (const s of seg) out.push(s.segment);
+      }
       segmentsRef.current = out.length ? out : Array.from(text);
     } catch {
       segmentsRef.current = Array.from(text);
@@ -155,7 +157,7 @@ function GameInner() {
     evidenceFound, addEvidence, 
     gameStatus, setGameStatus,
     combo, incrementCombo, resetCombo,
-    achievements, grantAchievement,
+    grantAchievement,
     decisions, objective, suggestionHistory,
     addDecision, setObjective, addSuggestionHistory,
     lastLogicOverloadAt, logicCooldownMs, setLastLogicOverloadAt,
@@ -180,8 +182,7 @@ function GameInner() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [nodeFilter, setNodeFilter] = useState<'ALL' | 'EVIDENCE' | 'SKILL' | 'NODE' | 'SYSTEM'>('ALL');
-  const [snapshots, setSnapshots] = useState<any[]>([]);
-  const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
+  const [snapshots, setSnapshots] = useState<Array<{ levelId: string; result: string; timestamp: number; decisions: string[]; suggestionHistory: string[]; nodeGraph: { id: string; type: "EVIDENCE" | "SKILL" | "NODE" | "SYSTEM"; label: string; ts: number }[]; objective: string | null }>>([]);
   const [nodeViewMode, setNodeViewMode] = useState<'LIST' | 'TIMELINE' | 'TREE'>('LIST');
   const [timelineZoom, setTimelineZoom] = useState<number>(1);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -237,7 +238,7 @@ function GameInner() {
 
       generateSummary();
     }
-  }, [stress, gameStatus, setGameStatus, messages, levelId, currentLevel.title]);
+  }, [stress, gameStatus, setGameStatus, messages, levelId, currentLevel.title, grantAchievement, turnCount]);
 
   useEffect(() => {
     if (gameStatus === 'won' || gameStatus === 'lost') {
@@ -262,7 +263,7 @@ function GameInner() {
         setSnapshots(arr.slice(0, 20));
       } catch {}
     }
-  }, [gameStatus]);
+  }, [gameStatus, currentLevel.title, decisions, evidenceFound, levelId, nodeGraph, objective, stress, suggestionHistory, turnCount]);
 
   // Boot Sequence Effect
   useEffect(() => {
@@ -274,6 +275,9 @@ function GameInner() {
 
   // Handle Send
   const handleSendMessage = async (content: string, isSystemAction = false, hidden = false) => {
+    // 局部变量，供 catch 块使用
+    const currentContent = content;
+    const wasSystemAction = isSystemAction;
     if ((!content.trim() && !isSystemAction) || isLoading) return;
 
     // Energy check for user messages
@@ -318,93 +322,59 @@ function GameInner() {
       if (!response.ok) throw new Error("API Error");
 
       const data = await response.json();
-      const rawContent = data.content;
       
-      // Parse hidden status block
-      const statusRegex = /:::STATUS:?[\s\n]*(\{[\s\S]*?\})[\s\n]*:::+/;
-      const match = rawContent.match(statusRegex);
-      const schemaRegex = /:::SCHEMA:?[\s\n]*(\{[\s\S]*?\})[\s\n]*:::+/;
-      const schemaMatch = rawContent.match(schemaRegex);
-      
-      let cleanContent = rawContent;
-      let thought = "";
+      // 新的 JSON 解析逻辑
+      const { 
+        dialogue, 
+        thought, 
+        stress: newStress, 
+        confession, 
+        suggestions: newSuggestions, 
+        branch,
+      } = data;
 
-      if (match && match[1]) {
-        try {
-          const jsonStr = match[1].trim();
-          const status = JSON.parse(jsonStr);
-          if (typeof status.stress === 'number') setStress(status.stress);
-          if (status.confession === true) setGameStatus('won');
-          
-          if (status.thought) thought = status.thought;
-          
-          cleanContent = rawContent.replace(/:::STATUS[:\s\n]*\{[\s\S]*?\}[\s\n]*:::+/, '').trim();
-        } catch (e) {
-          if (process.env.NODE_ENV !== 'production') console.error("Failed to parse agent status JSON:", e, match[1]);
-           cleanContent = rawContent.replace(/:::STATUS[\s\S]*?:::+/, '').trim();
-        }
-      } else {
-         if (rawContent.includes(":::STATUS")) {
-             cleanContent = rawContent.split(":::STATUS")[0].trim();
-         }
+      // 更新状态
+      if (typeof newStress === 'number') setStress(newStress);
+      if (confession === true) {
+        setGameStatus('won');
+        setObjective('结案：已承认');
       }
-      if (schemaMatch && schemaMatch[1]) {
-        try {
-          const schema = JSON.parse(schemaMatch[1].trim());
-          if (Array.isArray(schema.suggestions)) setSuggestions(schema.suggestions);
-          if (typeof schema.effects?.stressDelta === 'number') {
-            // client already applied absolute stress above; optional side effects can be considered here
-          }
-          if (schema.branch?.nodeId) addDecision(`NODE:${schema.branch.nodeId}`);
-          if (schema.branch?.nodeId) addNodeEntry({ id: schema.branch.nodeId, type: 'NODE', label: schema.branch?.title || schema.branch.nodeId });
-          if (schema.suggestions?.[0]) { setObjective(schema.suggestions[0]); addSuggestionHistory(schema.suggestions[0]); }
-          if (schema.confession === true) setObjective('结案：已承认');
-          if (schema.dialogue) {
-            cleanContent = schema.dialogue;
-          }
-          if (typeof schema.thought === 'string') {
-            thought = schema.thought;
-          }
-        } catch (e) {
-          if (process.env.NODE_ENV !== 'production') console.error("Failed to parse SCHEMA JSON:", e);
-        }
-        cleanContent = cleanContent.replace(/:::SCHEMA[\s\S]*?:::+/, '').trim();
+      if (Array.isArray(newSuggestions)) setSuggestions(newSuggestions);
+      if (branch?.nodeId) {
+        addDecision(`NODE:${branch.nodeId}`);
+        addNodeEntry({ id: branch.nodeId, type: 'NODE', label: branch?.title || branch.nodeId });
+      }
+      if (newSuggestions?.[0]) {
+        setObjective(newSuggestions[0]);
+        addSuggestionHistory(newSuggestions[0]);
       }
 
       const aiMsg: Message = { 
-        id: (Date.now() + 1).toString(), 
-        role: 'assistant', 
-        content: cleanContent,
-        thought: thought
-      };
+          id: (Date.now() + 1).toString(), 
+          role: 'assistant', 
+          content: dialogue || "...", // Fallback for empty dialogue
+          thought: thought || "", // Fallback for empty thought
+          thoughtRevealed: deepScanActive || false
+        };
 
-      if (!deepScanActive) {
-          aiMsg.thought = undefined;
-      } else {
-          // 思维截获时如果没有提供思维，就不显示占位
-      }
+        setMessages(prev => [...prev, aiMsg]);
+        setTurnCount(prev => prev + 1);
 
-      setMessages(prev => [...prev, aiMsg]);
-      setTurnCount(prev => prev + 1);
-      
-      if (content !== "START_SESSION") {
-          setEnergy(e => e + 15);
-      }
-      if (deepScanActive) setDeepScanActive(false);
+        if (deepScanActive) setDeepScanActive(false);
 
+        if (content !== 'START_SESSION') setEnergy(e => e + 15);
     } catch (err) {
       if (process.env.NODE_ENV !== 'production') console.error(err);
-      if (!isSystemAction && content !== "START_SESSION") {
-          setEnergy(e => e + 5); 
+      if (!wasSystemAction && currentContent !== "START_SESSION") {
+        setEnergy(e => e + 5);
       }
-      if (content.includes("你的逻辑模型存在严重矛盾")) {
-          setEnergy(e => e + 40);
+      if (currentContent.includes("你的逻辑模型存在严重矛盾")) {
+        setEnergy(e => e + 40);
       }
-
-      const errorMsg: Message = { 
-        id: Date.now().toString(), 
-        role: 'assistant', 
-        content: "[系统严重错误] 通信链路中断。能量已返还。请重试。" 
+      const errorMsg: Message = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "[系统严重错误] 通信链路中断。能量已返还。请重试。"
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -436,15 +406,40 @@ function GameInner() {
   const handleDeepScan = () => {
     if (energy < 20) return;
     setEnergy(e => e - 20);
-    setDeepScanActive(true);
     incrementCombo();
     addDecision('DEEP_SCAN');
     addNodeEntry({ id: 'DEEP_SCAN', type: 'SKILL', label: '思维截获' });
-    // Add a system notification
-    setMessages(prev => [...prev, { 
-      id: Date.now().toString(), 
-      role: 'system', 
-      content: ">>> 启动深层思维读取协议。下一次回复将包含 AI 的内部逻辑流。建议配合[休息]或[安抚]使用以获取最佳效果。" 
+
+    const lastIndex = (() => {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.role === 'assistant' && m.thought && !m.thoughtRevealed) {
+          return i;
+        }
+      }
+      return -1;
+    })();
+
+    if (lastIndex >= 0) {
+      const nextMessages = messages.map((m, idx) =>
+        idx === lastIndex ? { ...m, thoughtRevealed: true } : m
+      );
+      setMessages(nextMessages);
+      setDeepScanActive(false);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'system',
+        content: '>>> 思维截获成功。已解锁最近一条 AI 回复的隐藏思维链。'
+      }]);
+      if (combo >= 2) grantAchievement('连携起手：读取后压迫');
+      return;
+    }
+
+    setDeepScanActive(true);
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      role: 'system',
+      content: '>>> 深层思维读取协议已启动。下一次 AI 回应将包含隐藏思维链。'
     }]);
     if (combo >= 2) grantAchievement('连携起手：读取后压迫');
   };
@@ -542,7 +537,6 @@ function GameInner() {
     const s = snapshots[idx];
     if (!s) return;
     setArchiveView({ decisions: s.decisions || [], suggestionHistory: s.suggestionHistory || [], nodeGraph: s.nodeGraph || [], objective: s.objective || null });
-    setSelectedSnapshotIndex(idx);
   };
 
   // Present Evidence Action
@@ -557,7 +551,9 @@ function GameInner() {
     incrementCombo();
     addDecision(`EVIDENCE:${id}`);
     addNodeEntry({ id: `EVIDENCE:${id}`, type: 'EVIDENCE', label: item.name });
-    if (deepScanActive) {
+    // Check if any recent AI message has revealed thoughts (indicating active deep scan)
+    const hasRevealedThought = messages.some(m => m.role === 'assistant' && m.thoughtRevealed);
+    if (hasRevealedThought) {
       setStress(s => Math.min(100, s + 5));
       grantAchievement('思维截获连携：证据直击');
     }
@@ -628,7 +624,7 @@ function GameInner() {
                  <div className="font-mono text-cyber-primary text-sm flex flex-col items-center gap-4">
                     <div className="w-16 h-16 border-4 border-t-cyber-primary border-r-transparent border-b-cyber-primary border-l-transparent rounded-full animate-spin"></div>
                     <div className="animate-pulse">正在建立神经连接...</div>
-                    <div className="text-xs text-cyber-primary/50">v2.4.0-alpha // 安全协议已启动</div>
+                    <div className="text-xs text-cyber-primary/50">v2.4.0-alpha {'//'} 安全协议已启动</div>
                  </div>
               ) : (
                 <motion.div 
@@ -821,7 +817,7 @@ function GameInner() {
                 stress > 80 ? "text-red-500 animate-pulse-fast" : "text-cyber-primary animate-pulse"
               )} />
               {/* Scan Overlay */}
-              {deepScanActive && (
+              {messages.some(m => m.role === 'assistant' && m.thoughtRevealed) && (
                  <div className="absolute inset-0 bg-cyber-accent/30 animate-pulse z-10 flex items-center justify-center">
                     <Eye className="w-4 h-4 text-white animate-spin-slow" />
                  </div>
@@ -833,7 +829,7 @@ function GameInner() {
                  stress > 80 ? "text-red-500" : "text-white"
               )}>{currentLevel.aiName}</h1>
               <div className="flex items-center gap-2 text-xs text-cyber-primary/80 font-mono">
-                <Wifi className="w-3 h-3" /> {currentLevel.id.toUpperCase()} // 能量: {energy}%
+                <Wifi className="w-3 h-3" /> {currentLevel.id.toUpperCase()} {'//'} 能量: {energy}%
               </div>
               <EnergyBar value={energy} />
             </div>
@@ -877,7 +873,7 @@ function GameInner() {
                 <div className="relative bg-cyber-black/70 border border-cyber-primary/40 shadow-[0_0_30px_rgba(0,255,157,0.08)]">
                   <div className="px-5 py-4 flex items-center justify-between border-b border-cyber-primary/20">
                     <div className="flex items-center gap-2 text-white font-bold">
-                      <HelpCircle size={16} /> TACTICAL_GUIDE // 战术指南
+                      <HelpCircle size={16} /> TACTICAL_GUIDE {'//'} 战术指南
                     </div>
                     <button className="text-xs font-mono text-cyber-primary/80 hover:text-white transition-colors" onClick={() => setShowHelp(true)}>
                       打开完整指南 →
@@ -958,56 +954,76 @@ function GameInner() {
                         ? "bg-cyber-primary/5 border-cyber-primary/30 text-cyber-primary rounded-tr-none shadow-[0_0_15px_rgba(0,255,157,0.05)]" 
                         : "bg-cyber-dark border-cyber-gray text-gray-300 rounded-tl-none shadow-[0_0_15px_rgba(0,0,0,0.5)]"
                     )}>
-                        {m.role === 'assistant' && (
-                            <div className="text-[10px] text-gray-500 mb-2 font-mono uppercase tracking-wider flex items-center gap-1 border-b border-gray-800 pb-1">
-                                <MessageSquare size={10}/> 
-                                <span>音频输出通道</span>
-                            </div>
-                        )}
+                        <div className="flex items-center justify-between mb-2">
+                            {m.role === 'assistant' && (
+                                <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider flex items-center gap-1 border-b border-gray-800 pb-1">
+                                    <MessageSquare size={10}/> 
+                                    <span>AI对话输出</span>
+                                </div>
+                            )}
+                            {/* Hidden thought indicator in main bubble */}
+                            {m.role === 'assistant' && m.thought && !m.thoughtRevealed && (
+                                <div className="flex items-center gap-1 opacity-60" title="存在隐藏思维数据">
+                                    <Lock size={10} className="text-cyber-gray" />
+                                    <span className="text-[9px] font-mono text-cyber-gray">加密</span>
+                                </div>
+                            )}
+                        </div>
                         {m.content}
                     </div>
                     
                     {m.role === 'assistant' && (
-                      <div className="flex items-center gap-2 pl-2">
-                        <button 
-                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-primary hover:text-cyber-primary transition-colors rounded-none"
-                          onClick={() => navigator.clipboard.writeText(m.content)}
-                        >
-                          复制
-                        </button>
-                        <button 
-                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-accent hover:text-cyber-accent transition-colors rounded-none"
-                          onClick={() => addNodeEntry({ id: `NODE:${m.id}`, type: 'NODE', label: '对话片段' })}
-                        >
-                          加入节点图谱
-                        </button>
-                        <button 
-                          className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-secondary hover:text-cyber-secondary transition-colors rounded-none"
-                          onClick={() => {
-                            const snippet = m.content.slice(0, 20).replace(/\n/g, ' ');
-                            addNodeEntry({ id: `EVIDENCE_SNIPPET:${m.id}`, type: 'EVIDENCE', label: `片段：${snippet}...` });
-                          }}
-                        >
-                          标记为证据
-                        </button>
+                      <div className="flex flex-col gap-2">
+                        {/* AI's visible speech to player */}
+                        <div className="flex items-center gap-2 pl-2">
+                          <button 
+                            className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-primary hover:text-cyber-primary transition-colors rounded-none"
+                            onClick={() => navigator.clipboard.writeText(m.content)}
+                          >
+                            复制
+                          </button>
+                          <button 
+                            className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-accent hover:text-cyber-accent transition-colors rounded-none"
+                            onClick={() => addNodeEntry({ id: `NODE:${m.id}`, type: 'NODE', label: '对话片段' })}
+                          >
+                            加入节点图谱
+                          </button>
+                          <button 
+                            className="text-[10px] font-mono px-2 py-0.5 border border-cyber-gray text-gray-400 hover:border-cyber-secondary hover:text-cyber-secondary transition-colors rounded-none"
+                            onClick={() => {
+                              const snippet = m.content.slice(0, 20).replace(/\n/g, ' ');
+                              addNodeEntry({ id: `EVIDENCE_SNIPPET:${m.id}`, type: 'EVIDENCE', label: `片段：${snippet}...` });
+                            }}
+                          >
+                            标记为证据
+                          </button>
+                        </div>
+                        
+                        {/* AI's hidden thoughts - only visible when revealed */}
+                        {m.thought && m.thoughtRevealed && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0, x: -20 }}
+                            animate={{ opacity: 1, height: "auto", x: 0 }}
+                            className="border-l-2 border-cyber-accent bg-cyber-accent/5 p-3 rounded-r-lg text-xs font-mono text-cyber-accent relative overflow-hidden self-start shadow-[0_0_10px_rgba(0,204,255,0.1)]"
+                          >
+                            <div className="flex items-center gap-2 mb-2 opacity-80 border-b border-cyber-accent/20 pb-1">
+                              <Unlock size={12} /> 
+                              <span className="font-bold tracking-widest">{'思维数据流 // 已解密'}</span>
+                            </div>
+                            <div className="pl-1 text-cyber-accent/90 leading-relaxed italic">
+                              &ldquo;{m.thought}&rdquo;
+                            </div>
+                          </motion.div>
+                        )}
+                        
+                        {/* Hidden thought indicator - shows when thought exists but not revealed */}
+                        {m.thought && !m.thoughtRevealed && (
+                          <div className="flex items-center gap-2 pl-2 opacity-50">
+                            <Lock size={12} className="text-cyber-gray" />
+                            <span className="text-[10px] font-mono text-cyber-gray">思维数据已加密</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    
-                    {/* Thought Bubble (Deep Scan) */}
-                    {m.thought && (
-                        <motion.div 
-                        initial={{ opacity: 0, height: 0, x: -20 }}
-                        animate={{ opacity: 1, height: "auto", x: 0 }}
-                        className="border-l-2 border-cyber-accent bg-cyber-accent/5 p-3 rounded-r-lg text-xs font-mono text-cyber-accent relative overflow-hidden self-start shadow-[0_0_10px_rgba(0,204,255,0.1)]"
-                        >
-                        <div className="flex items-center gap-2 mb-2 opacity-80 border-b border-cyber-accent/20 pb-1">
-                            <Unlock size={12} /> 
-                            <span className="font-bold tracking-widest">思维数据流 // 已解密</span>
-                        </div>
-                        <div className="pl-1 text-cyber-accent/90 leading-relaxed italic">
-                            "{m.thought}"
-                        </div>
-                        </motion.div>
                     )}
                   </div>
                 </div>
@@ -1293,7 +1309,7 @@ function GameInner() {
                   <div className="text-[10px] font-mono bg-cyber-accent/10 text-cyber-accent px-1.5 py-0.5 rounded border border-cyber-accent/30">-20E</div>
                 </div>
                 <p className="text-[10px] text-gray-500 group-hover:text-gray-300 font-mono">
-                    // DEEP_SCAN_PROTOCOL<br/>
+                    {'//'} DEEP_SCAN_PROTOCOL<br/>
                     强制读取 AI 隐藏思维链。
                 </p>
               </div>
@@ -1314,7 +1330,7 @@ function GameInner() {
                   <div className="text-[10px] font-mono bg-cyber-primary/10 text-cyber-primary px-1.5 py-0.5 rounded border border-cyber-primary/30">-30E</div>
                 </div>
                 <p className="text-[10px] text-gray-500 group-hover:text-gray-300 font-mono">
-                    // BRUTE_FORCE_ACCESS<br/>
+                    {'//'} BRUTE_FORCE_ACCESS<br/>
                     暴力解锁关键证据档案。
                 </p>
               </div>
@@ -1335,7 +1351,7 @@ function GameInner() {
                   <div className="text-[10px] font-mono bg-cyber-secondary/10 text-cyber-secondary px-1.5 py-0.5 rounded border border-cyber-secondary/30">-40E</div>
                 </div>
                 <p className="text-[10px] text-gray-500 group-hover:text-gray-300 font-mono">
-                    // LOGIC_BOMB_INJECTION<br/>
+                    {'//'} LOGIC_BOMB_INJECTION<br/>
                     强制触发语言模块崩溃。
                 </p>
               </div>
@@ -1365,7 +1381,7 @@ function GameInner() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-[680px] bg-cyber-black border border-cyber-gray p-4">
             <div className="flex justify-between items-center mb-2">
-              <div className="text-xs font-mono text-gray-400">Dossier // 进度档案</div>
+              <div className="text-xs font-mono text-gray-400">Dossier {'//'} 进度档案</div>
               <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowArchiveModal(false)}>关闭</button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -1385,7 +1401,7 @@ function GameInner() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-[780px] bg-cyber-black border border-cyber-gray p-4">
             <div className="flex justify-between items-center mb-2">
-              <div className="text-xs font-mono text-gray-400">Dossier // 档案快照</div>
+              <div className="text-xs font-mono text-gray-400">Dossier {'//'} 档案快照</div>
               <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowSnapshotModal(false)}>关闭</button>
             </div>
             <div className="p-3 border border-cyber-gray bg-cyber-dark/50 max-h-[420px] overflow-y-auto">
@@ -1397,7 +1413,7 @@ function GameInner() {
                     <div key={i} className="flex items-center justify-between border border-cyber-gray/50 bg-cyber-black px-2 py-1">
                       <div className="text-[10px] font-mono text-gray-300">{s.levelId} / {s.result} / {new Date(s.timestamp).toLocaleString()}</div>
                       <button className="text-[10px] font-mono px-2 py-0.5 border border-cyber-primary text-cyber-primary rounded-none" onClick={() => {
-                        setArchiveView(s);
+                        setArchiveView({ decisions: s.decisions || [], suggestionHistory: s.suggestionHistory || [], nodeGraph: s.nodeGraph || [], objective: s.objective || null });
                         setShowSnapshotModal(false);
                       }}>载入到视图</button>
                     </div>
@@ -1412,17 +1428,17 @@ function GameInner() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-[880px] bg-cyber-black border border-cyber-gray p-4">
             <div className="flex justify-between items-center mb-2">
-              <div className="text-xs font-mono text-gray-400">Dossier // 节点图谱</div>
+              <div className="text-xs font-mono text-gray-400">Dossier {'//'} 节点图谱</div>
               <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowNodeModal(false)}>关闭</button>
             </div>
             <div className="p-3 border border-cyber-gray bg-cyber-dark/50">
               <div className="mb-3 flex items-center gap-2">
                 {['ALL','EVIDENCE','SKILL','NODE','SYSTEM'].map((k) => (
-                  <button key={k} className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeFilter === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")} onClick={() => setNodeFilter(k as any)}>{k}</button>
+                  <button key={k} className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeFilter === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")} onClick={() => setNodeFilter(k as 'ALL' | 'EVIDENCE' | 'SKILL' | 'NODE' | 'SYSTEM')}>{k}</button>
                 ))}
                 <div className="ml-auto flex items-center gap-2">
                   {['LIST','TIMELINE','TREE'].map((k) => (
-                    <button key={k} className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeViewMode === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")} onClick={() => setNodeViewMode(k as any)}>{k}</button>
+                    <button key={k} className={cn("text-[10px] font-mono px-2 py-0.5 border rounded-none", nodeViewMode === k ? "border-cyber-primary text-cyber-primary" : "border-cyber-gray text-gray-400")} onClick={() => setNodeViewMode(k as 'LIST' | 'TIMELINE' | 'TREE')}>{k}</button>
                   ))}
                 </div>
               </div>
@@ -1530,7 +1546,7 @@ function GameInner() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-[720px] bg-cyber-black border border-cyber-gray p-4">
             <div className="flex justify-between items-center mb-2">
-              <div className="text-xs font-mono text-gray-400">Dossier // 章节复核</div>
+              <div className="text-xs font-mono text-gray-400">Dossier {'//'} 章节复核</div>
               <button className="text-xs font-mono text-gray-400 border border-gray-700 px-2 py-1 rounded-none" onClick={() => setShowReviewModal(false)}>关闭</button>
             </div>
             <div className="p-3 border border-cyber-gray bg-cyber-dark/50">

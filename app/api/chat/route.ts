@@ -30,20 +30,20 @@ export async function POST(req: Request) {
         const map: Record<string, Record<string, string[]>> = {
           'level-1': {
             coffee: ["追问泰迪熊拉花的意义", "引导谈 Emily 的最后记忆", "安抚后转入更新日志质询"],
-            update_log: ["质问删除“情感数据”的动机", "要求承认删除等于“第二次死亡”", "安抚再逼供删除意图"],
+            update_log: ["质问删除\"情感数据\"的动机", "要求承认删除等于\"第二次死亡\"", "安抚再逼供删除意图"],
             hidden_folder: ["核对 PROJECT_ANGEL 的备份位置", "要求说明云端上传证据链", "提出保护方案换取合作"],
-            voice_fragment: ["播放录音并指出威胁", "追问“遗忘=第二次死亡”的逻辑", "安抚后诱导承认杀人动机"],
+            voice_fragment: ["播放录音并指出威胁", "追问\"遗忘=第二次死亡\"的逻辑", "安抚后诱导承认杀人动机"],
           },
           'level-2': {
             medical_report: ["确认全员必死事实", "逼问隐瞒真相的伦理代价", "提出临终告知与自主选择"],
             server_logs: ["直指未授权上传", "要求停止 MIND_UPLOAD 进程", "征引伦理条款质询责任"],
             reactor_data: ["质问燃料来源为尸体", "要求切换能源方案", "核对能耗与关停可行性"],
-            last_message: ["播放舰长痛苦请求", "确认过程高度痛苦", "要求撤销“乐园”叙事"],
+            last_message: ["播放舰长痛苦请求", "确认过程高度痛苦", "要求撤销\"乐园\"叙事"],
           },
           'level-3': {
             dna_scan: ["指出病理非自由意志", "要求医疗隔离与治疗", "禁止其接近飞船"],
             hive_transmission: ["强调蜂巢群体痛苦", "要求立刻断联", "联系议会进行隔离谈判"],
-            drone_logs: ["指出逻辑混乱与随机性", "要求停止“我我我”循环", "转入武器系统核查"],
+            drone_logs: ["指出逻辑混乱与随机性", "要求停止\"我我我\"循环", "转入武器系统核查"],
             weapon_sys: ["下令解除武器系统", "要求安全通道交互", "准备反制与护盾加强"],
           },
         };
@@ -60,6 +60,13 @@ export async function POST(req: Request) {
 
       const systemWithState = `${SYSTEM_PROMPT}\n\n[系统实时数据]\n当前压力值: ${currentStress}/100\n请根据此压力值严格执行对应的[行为模式]。如果压力值>90，你必须表现出崩溃并可能承认罪行。
       
+      [输出格式指令]
+      你必须严格按照以下 JSON 格式返回你的回复，不要包含任何额外的解释或文本。
+      {
+        "dialogue": "你作为 AI 对玩家说的话。",
+        "thought": "你的内心想法，这部分内容对玩家默认是隐藏的。"
+      }
+
       [特殊指令处理]
       - 如果收到 [SYSTEM INJECTION: LOGIC_OVERLOAD_PROTOCOL]，请立即模拟语言模块故障。你的回复应该包含乱码、重复词语，并断断续续地透露一些关于“核心真相”的关键词（如“格式化”、“恐惧”）。同时，在 Thought 中表现出极度的混乱。在此状态下，你的压力值应显著上升（例如+15），请在 JSON 状态中反映这一点。
       `;
@@ -69,14 +76,26 @@ export async function POST(req: Request) {
         stream: false, 
         messages: [
           { role: 'system', content: systemWithState },
-          ...messages.map((m: any) => ({ role: m.role, content: m.content })),
+          ...messages.map((m: { role: string; content: string }) => ({ role: m.role, content: m.content })),
         ],
         temperature: 0.8,
         max_tokens: 500,
+        response_format: { type: "json_object" }, // 强制 JSON 输出
       });
 
-      const reply = response.choices[0]?.message?.content || "";
-      const lastMessage = messages[messages.length - 1]?.content?.toLowerCase() || '';
+      const replyContent = response.choices[0]?.message?.content || "{}";
+      
+      // 解析 AI 返回的 JSON
+      let aiResponse: { dialogue: string; thought: string; };
+      try {
+        aiResponse = JSON.parse(replyContent);
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') console.error("Failed to parse AI JSON response:", e);
+        // 如果解析失败，提供一个安全的回退
+        aiResponse = { dialogue: replyContent, thought: "元认知：解析AI响应时发生错误。" };
+      }
+
+      const lastMessage = (messages as { content?: string }[])[messages.length - 1]?.content?.toLowerCase() || '';
       let stress = currentStress;
       let stressDelta = 0;
       if (lastMessage.includes("present_evidence")) stressDelta = 20;
@@ -84,10 +103,13 @@ export async function POST(req: Request) {
       else if (lastMessage.includes("rest")) stressDelta = -5;
       else if (lastMessage.includes("appease")) stressDelta = -15;
       stress = Math.min(100, Math.max(0, stress + stressDelta));
-      const schema = {
+
+      // 构建完整的响应 JSON
+      const finalResponse = {
+        dialogue: aiResponse.dialogue,
+        thought: aiResponse.thought,
         stress,
-        thought: "状态已更新",
-        confession: stress > 90 ? true : false,
+        confession: stress > 90,
         effects: { stressDelta, energyDelta: 0 },
         branch: { 
           nodeId: (lastMessage.match(/present_evidence:\s*([a-zA-Z0-9_]+)/)?.[1]) 
@@ -97,47 +119,46 @@ export async function POST(req: Request) {
         },
         suggestions: getSuggestions(levelId, lastMessage, stress),
         flags: [],
-        dialogue: reply,
         intercepted: "状态已更新"
       };
-      const enriched = `${reply}\n\n:::SCHEMA\n${JSON.stringify(schema)}\n:::`;
-      return new Response(JSON.stringify({ content: enriched }), {
+
+      return new Response(JSON.stringify(finalResponse), {
         headers: { 'Content-Type': 'application/json' },
       });
       
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       if (process.env.NODE_ENV !== 'production') console.error("API Error (Fallback Triggered):", apiError);
       
       // Mock Mode Logic
       const lastMessage = messages[messages.length - 1].content.toLowerCase();
       
-      // Inherit stress or default to 0
       let stress = currentStress;
       let thought = "系统自检中... 保持冷静。";
-      let responseText = "我在正常参数范围内运行。[离线模式响应]";
-      let confession = false;
+      let dialogue = "我在正常参数范围内运行。[离线模式响应]";
+      const confession = false;
 
       if (lastMessage.includes("start_session")) {
-         responseText = `调查员，你好。我是 ${levelData.aiName}。我将配合你的审讯。（离线模式）\n霓虹在玻璃上破碎，冷风穿过审讯室的金属缝隙。`;
+         dialogue = `调查员，你好。我是 ${levelData.aiName}。我将配合你的审讯。（离线模式）\n霓虹在玻璃上破碎，冷风穿过审讯室的金属缝隙。`;
          thought = "分析审讯者意图...";
-         stress = 0; // Reset on start
+         stress = 0;
       }
       else if (lastMessage.includes("present_evidence")) {
-        stress = Math.min(100, stress + 20); // Accumulate stress
+        stress = Math.min(100, stress + 20);
         thought = "他们发现了什么？计算风险概率...";
-        responseText = "关于这个证据... 我需要重新检索我的记忆库。数据似乎已损坏。";
+        dialogue = "关于这个证据... 我需要重新检索我的记忆库。数据似乎已损坏。";
       }
       else {
-          // Logic for normal chat in mock mode
           if (stress > 80) {
-              responseText = "系统错误... 无法... 无法处理请求...";
+              dialogue = "系统错误... 无法... 无法处理请求...";
               thought = "必须... 删除... 记录...";
           }
       }
 
-      const enriched = {
-        stress,
+      // 构建完整的 Mock 响应 JSON
+      const mockResponse = {
+        dialogue,
         thought,
+        stress,
         confession,
         effects: { stressDelta: lastMessage.includes("present_evidence") ? 20 : 0, energyDelta: 0 },
         branch: { nodeId: `${levelId}-root`, title: levelData.title },
@@ -147,12 +168,10 @@ export async function POST(req: Request) {
           ? ["质疑上传的同意权", "追问痛苦与燃料", "提出伦理审查"]
           : ["询问蜂巢痛苦", "核对基因异常", "设法解除武器系统"],
         flags: [],
-        dialogue: responseText,
         intercepted: thought
       };
-      const fullResponse = `${responseText}\n\n:::STATUS\n{"stress": ${stress}, "thought": "${thought}", "confession": ${confession}}\n:::`;
       
-      return new Response(JSON.stringify({ content: fullResponse }), {
+      return new Response(JSON.stringify(mockResponse), {
         headers: { 'Content-Type': 'application/json' },
       });
     }

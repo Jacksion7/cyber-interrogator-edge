@@ -1,4 +1,4 @@
-import { FileText, Eye, Database, Activity, Zap, WifiOff, Share2, AlertTriangle, Radio } from 'lucide-react';
+import { FileText, Database, Activity, Zap, AlertTriangle, Radio, WifiOff } from 'lucide-react';
 import React from 'react';
 
 export interface EvidenceItem {
